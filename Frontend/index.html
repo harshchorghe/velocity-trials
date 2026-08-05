@@ -28,7 +28,7 @@
 ══════════════════════════ -->
   <div id="intro-screen">
     <video id="intro-video" autoplay muted loop playsinline preload="auto">
-      <source src="/assets/videos/intro.mp4" type="video/mp4">
+      <source src="./assets/videos/intro.mp4" type="video/mp4">
     </video>
     <div class="intro-bar top"></div>
     <div class="intro-bar bot"></div>
@@ -239,7 +239,7 @@
    STAGE 3 — MAIN APP
 ══════════════════════════ -->
   <video id="bgv" autoplay loop playsinline preload="auto">
-    <source src="assets/videos/background.mp4" type="video/mp4">
+    <source src="assets/videos/background.webp" type="video/webp">
   </video>
   <canvas id="bgc"></canvas>
   <div id="scanline-overlay"></div>
@@ -377,6 +377,7 @@
               <option value="SY">Second Year (SY)</option>
               <option value="TY">Third Year (TY)</option>
               <option value="BE">Final Year (BE)</option>
+              <option value="MTECH">Other</option>
             </select>
             <div class="field-err" id="err-year">⚠ SELECT YOUR YEAR</div>
           </div>
@@ -415,15 +416,7 @@
             </svg>
             MISSION BRIEFING
           </button>
-          <button type="button" class="nav-btn" id="btn-leaderboard">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-              <path d="M4 22h16" />
-              <path d="M18 2H6v7a6 6 0 0 0 12 0V2z" />
-            </svg>
-            LEADERBOARD
-          </button>
+
           <button type="button" class="nav-btn ex" id="btn-exit">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />

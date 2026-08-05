@@ -200,12 +200,8 @@ function startBoot() {
     overlay.classList.add('active');
 
     const steps = [
-        { t: '> ECHO KERNEL v4.2 — INITIALIZING…', cls: '', pct: 8, d: 0 },
+        { t: '> VELOCITY TRAILS — INITIALIZING…', cls: '', pct: 8, d: 0 },
         { t: '> LOADING MISSION DATABASE…', cls: '', pct: 18, d: 420 },
-        { t: '> QUANTUM ENCRYPTION MODULE: ONLINE', cls: 'ok', pct: 30, d: 860 },
-        { t: '> SCANNING ARIA THREAT VECTORS…', cls: 'warn', pct: 42, d: 1300 },
-        { t: '> WARNING: 1,847 BREACH POINTS DETECTED', cls: 'warn', pct: 48, d: 1700 },
-        { t: '> CALIBRATING AGENT AUTHENTICATION GRID…', cls: '', pct: 58, d: 2200 },
         { t: '> SECURE CHANNEL ESTABLISHED — 256-BIT AES', cls: 'ok', pct: 68, d: 2750 },
         { t: '> MISSION PARAMETER MATRIX: LOADED', cls: 'ok', pct: 78, d: 3200 },
         { t: '> ECHO AI GUARDIAN: ONLINE', cls: 'ok', pct: 88, d: 3650 },
@@ -258,14 +254,13 @@ document.querySelectorAll('.start-btn,.nav-btn,.modal-close,.intro-skip').forEac
 (function () {
     const msgs = [
         "Scanning global threat matrix…",
-        "AI containment breach at 04:17 UTC.",
-        "You are one of the last authorized agents.",
-        "Authenticate. The mission clock is running.",
-        "REBOOT HUMANITY — it is your only directive.",
-        "Nature's life support is at 3%. Move now.",
-        "Every second of delay costs humanity dearly.",
-        "Every choice defines the future.",
-        "Are you ready, Agent?",
+        "You are one of the last authorized agents..",
+        "Authenticate. The mission clock is running..",
+        "REBOOT HUMANITY — it is your only directive..",
+        "Nature's life support is at 3%. Move now..",
+        "Every second of delay costs humanity dearly...",
+        "Every choice defines the future...",
+        "Are you ready, Agent...",
     ];
     const el = document.getElementById('echo-text');
     let mi = 0, ci = 0, typing = true;
