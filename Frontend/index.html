@@ -10,6 +10,9 @@
     href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
+  <!-- MediaPipe Hands & Camera Utils for Gesture Recognition -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -100,7 +103,7 @@
       <div class="modal-divider"></div>
       <div class="auth-terminal" id="auth-terminal"></div>
       <div id="auth-action" style="text-align:center;display:none">
-        <button class="modal-close" style="letter-spacing:4px;font-size:12px" onclick="closeModal('modal-auth')">▸
+        <button class="modal-close" style="letter-spacing:4px;font-size:12px" onclick="closeModal('modal-auth'); startLevel1();">▸
           PROCEED TO MISSION</button>
       </div>
     </div>
@@ -399,7 +402,7 @@
         </div>
 
         <!-- SUBMIT -->
-        <button type="submit" class="start-btn" id="startBtn">
+        <button type="button" class="start-btn" id="startBtn" onclick="handleStartMission(event)">
           <span id="btn-label">START MISSION</span>
           <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5">

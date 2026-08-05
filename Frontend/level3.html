@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velocity Trials — Level 3: The Final Showdown</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body id="page-level3">
+
+  <!-- AUDIO TOGGLE -->
+  <button id="audio-toggle" title="Toggle Sound" onclick="toggleAudio()">🔊</button>
+
+  <!-- CURSOR -->
+  <div id="cursor-glow">
+    <div id="cursor-outer"></div>
+    <div id="cursor-inner"></div>
+  </div>
+
+  <canvas id="bgc"></canvas>
+  <div id="scanline-overlay"></div>
+
+  <!-- ALERT MODAL -->
+  <div class="modal-overlay" id="modal-alert">
+    <div class="modal-panel" style="max-width:360px;text-align:center">
+      <div class="mc tl"></div><div class="mc tr"></div><div class="mc bl"></div><div class="mc br"></div>
+      <div class="alert-icon-wrap" id="alert-icon">!</div>
+      <div class="alert-title-el" id="alert-title">ALERT</div>
+      <div class="alert-msg-el" id="alert-msg"></div>
+      <button class="modal-close" onclick="closeModal('modal-alert')">ACKNOWLEDGED</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       STAGE — LEVEL 3: THE FINAL SHOWDOWN
+  ══════════════════════════════════════════════════ -->
+  <div id="game-stage-3" class="stage-container" style="display:flex">
+    <!-- PHASE 1: WEAPON SELECTION -->
+    <div id="weapon-select-screen">
+      <div class="stage-header" style="text-align:center">
+        <div class="stage-badge">LEVEL 3 — THE FINAL SHOWDOWN</div>
+        <h2 class="stage-title">CHOOSE YOUR LEGENDARY WEAPON</h2>
+        <p class="select-sub">Before facing the Corrupted Overlord, choose your combat armament carefully.</p>
+      </div>
+
+      <div class="weapons-grid">
+        <div class="weapon-card" onclick="selectWeapon('sword')">
+          <div class="w-icon">⚔️</div>
+          <div class="w-name">SHADOW SWORD</div>
+          <div class="w-type">MELEE COMBAT</div>
+          <p class="w-desc">Ultra-fast close-range attacks with +40% strike speed. Perfect for swift dodging and lethal slash combos.</p>
+          <div class="w-stats">
+            <span>SPEED: ★★★★★</span>
+            <span>RANGE: ★★☆☆☆</span>
+            <span>DAMAGE: ★★★★☆</span>
+          </div>
+          <button class="start-btn w-select-btn">EQUIP SHADOW SWORD</button>
+        </div>
+
+        <div class="weapon-card" onclick="selectWeapon('blaster')">
+          <div class="w-icon">💥</div>
+          <div class="w-name">GRAVITY BLASTER</div>
+          <div class="w-type">RANGED PLASMA</div>
+          <p class="w-desc">Fires heavy energy pulses from a distance with massive knockback, keeping the Overlord at bay.</p>
+          <div class="w-stats">
+            <span>SPEED: ★★★☆☆</span>
+            <span>RANGE: ★★★★★</span>
+            <span>DAMAGE: ★★★★★</span>
+          </div>
+          <button class="start-btn w-select-btn">EQUIP GRAVITY BLASTER</button>
+        </div>
+
+        <div class="weapon-card" onclick="selectWeapon('spear')">
+          <div class="w-icon">🔱</div>
+          <div class="w-name">ELEMENTAL SPEAR</div>
+          <div class="w-type">ELEMENTAL BALANCED</div>
+          <p class="w-desc">Balanced reach weapon unleashing elemental surges of Fire and Frost to freeze boss shields.</p>
+          <div class="w-stats">
+            <span>SPEED: ★★★★☆</span>
+            <span>RANGE: ★★★★☆</span>
+            <span>DAMAGE: ★★★★☆</span>
+          </div>
+          <button class="start-btn w-select-btn">EQUIP ELEMENTAL SPEAR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 2: BOSS ARENA -->
+    <div id="boss-arena-screen" style="display:none">
+      <div class="boss-hud">
+        <div class="boss-info">
+          <div class="boss-name">CORRUPTED OVERLORD (ROGUE AI)</div>
+          <div class="hp-bar-outer">
+            <div class="hp-bar-inner" id="boss-hp-bar" style="width:100%"></div>
+          </div>
+        </div>
+        <div class="player-boss-hud">
+          <div class="p-name" id="boss-player-name">AGENT</div>
+          <div class="hp-bar-outer player">
+            <div class="hp-bar-inner player" id="player-hp-bar" style="width:100%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOSS ARENA CANVAS -->
+      <div class="boss-canvas-wrap">
+        <canvas id="boss-canvas" width="1000" height="520"></canvas>
+        <div class="boss-controls-bar">
+          <button class="b-ctrl-btn attack" onclick="playerAttackBoss()">⚔️ ATTACK (KEY J / SWIPE)</button>
+          <button class="b-ctrl-btn dodge" onclick="playerDodgeBoss()">🛡️ DODGE (KEY K / FIST)</button>
+          <button class="b-ctrl-btn ult" id="ult-btn" onclick="playerUltimateBoss()">🔥 ULTIMATE BURST (KEY L / PALM)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       STAGE — VICTORY & CHAMPION PODIUM
+  ══════════════════════════════════════════════════ -->
+  <div id="game-stage-victory" class="stage-container" style="display:none">
+    <div class="victory-box">
+      <div class="v-trophy">🏆</div>
+      <h1 class="v-title">CHAMPION OF VELOCITY TRIALS</h1>
+      <div class="v-sub">PEACE HAS BEEN RESTORED TO THE FUTURISTIC CITY</div>
+
+      <div class="v-stats-card">
+        <div class="vs-row"><span>CHAMPION AGENT:</span> <strong id="v-agent-name">AGENT</strong></div>
+        <div class="vs-row"><span>DEPARTMENT & ROLL:</span> <strong id="v-agent-dept">CSE (AI) | 2K26</strong></div>
+        <div class="vs-row"><span>TOTAL TIME:</span> <strong id="v-total-time" class="gold">04:12.8</strong></div>
+        <div class="vs-row"><span>FINAL RANK:</span> <strong class="gold">#1 (CHAMPION)</strong></div>
+      </div>
+
+      <button class="start-btn" onclick="resetGameToStart()" style="margin-top:20px">PLAY AGAIN / REBOOT TERMINAL</button>
+    </div>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+
+</html>

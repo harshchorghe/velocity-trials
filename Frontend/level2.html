@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velocity Trials — Level 2: The Lost Velocity City</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body id="page-level2">
+
+  <!-- AUDIO TOGGLE -->
+  <button id="audio-toggle" title="Toggle Sound" onclick="toggleAudio()">🔊</button>
+
+  <!-- CURSOR -->
+  <div id="cursor-glow">
+    <div id="cursor-outer"></div>
+    <div id="cursor-inner"></div>
+  </div>
+
+  <canvas id="bgc"></canvas>
+  <div id="scanline-overlay"></div>
+
+  <!-- ALERT MODAL -->
+  <div class="modal-overlay" id="modal-alert">
+    <div class="modal-panel" style="max-width:360px;text-align:center">
+      <div class="mc tl"></div><div class="mc tr"></div><div class="mc bl"></div><div class="mc br"></div>
+      <div class="alert-icon-wrap" id="alert-icon">!</div>
+      <div class="alert-title-el" id="alert-title">ALERT</div>
+      <div class="alert-msg-el" id="alert-msg"></div>
+      <button class="modal-close" onclick="closeModal('modal-alert')">ACKNOWLEDGED</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       STAGE — LEVEL 2: THE LOST VELOCITY CITY
+  ══════════════════════════════════════════════════ -->
+  <div id="game-stage-2" class="stage-container" style="display:flex">
+    <div class="stage-header">
+      <div class="stage-badge">LEVEL 2</div>
+      <h2 class="stage-title">THE LOST VELOCITY CITY</h2>
+      <div class="hud-stats">
+        <div class="hud-item"><span class="h-lbl">AGENT:</span> <span id="lvl2-agent-name" class="h-val">UNKNOWN</span></div>
+        <div class="hud-item"><span class="h-lbl">LIVES:</span> <span id="lvl2-lives" class="h-val crit">❤️❤️❤️</span></div>
+        <div class="hud-item"><span class="h-lbl">CRYSTALS:</span> <span id="lvl2-crystals" class="h-val gold">💎 0 / 3</span></div>
+        <div class="hud-item"><span class="h-lbl">CITY TIMER:</span> <span id="lvl2-timer" class="timer-val">00:00</span></div>
+      </div>
+    </div>
+
+    <!-- POWER & MULTIPLAYER BADGES -->
+    <div class="lvl2-sub-bar">
+      <div class="power-badge" id="active-power-badge">
+        <span class="p-icon">⚡</span> ACTIVE POWER: <strong id="power-name-text">SPRINT (HOLD SHIFT / GESTURE: FIST)</strong>
+      </div>
+      <div class="multiplayer-badge">
+        <span class="m-dot"></span> MULTIPLAYER WORLD: <span id="co-players-count">3 OTHER AGENTS ACTIVE</span> (NEXUS, ARIA-7, PHANTOM)
+      </div>
+    </div>
+
+    <!-- CANVAS GAME WORLD -->
+    <div class="city-canvas-wrapper">
+      <canvas id="city-canvas" width="1000" height="580"></canvas>
+
+      <!-- GESTURE & TOUCH POWER TRIGGER OVERLAYS -->
+      <div class="canvas-controls-overlay">
+        <button class="g-power-btn sprint" onclick="triggerSpecialPower('sprint')">⚡ SPRINT (FIST)</button>
+        <button class="g-power-btn jump" onclick="triggerSpecialPower('jump')">🦘 HIGH JUMP (PALM)</button>
+        <button class="g-power-btn fly" onclick="triggerSpecialPower('fly')">🕊️ FLIGHT (VICTORY)</button>
+      </div>
+    </div>
+
+    <!-- LEVEL 2 QUALIFICATION OVERLAY -->
+    <div class="level-complete-overlay" id="lvl2-complete-modal" style="display:none">
+      <div class="complete-box">
+        <div class="c-icon">💎</div>
+        <div class="c-title">LEVEL 2 COMPLETED!</div>
+        <div class="c-desc">All 3 Velocity Crystals collected! You are ranked in the <strong>TOP 2 PLAYERS</strong>!</div>
+        <button class="start-btn" onclick="proceedToLevel3()">ADVANCE TO LEVEL 3 — THE FINAL SHOWDOWN ›</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+
+</html>
