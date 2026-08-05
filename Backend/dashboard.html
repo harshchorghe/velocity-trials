@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechChase — Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --c: #00d4ff;
+            --g: #39ff14;
+            --r: #ff3355;
+            --y: #ffd700;
+            --bg: #020b18;
+            --border: rgba(0, 212, 255, .3);
+        }
+
+        html,
+        body {
+            height: 100%;
+            background: var(--bg);
+            font-family: 'Rajdhani', sans-serif;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* ── SCANLINE ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, .025) 2px, rgba(0, 0, 0, .025) 4px);
+        }
+
+        /* ── PASSWORD GATE ── */
+        #gate {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 32px;
+            transition: opacity .6s ease;
+        }
+
+        #gate.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .gate-logo {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(22px, 4vw, 36px);
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(0, 212, 255, .5);
+            text-align: center;
+        }
+
+        .gate-logo span {
+            color: var(--c);
+        }
+
+        .gate-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 4px;
+            color: rgba(255, 215, 0, .7);
+            text-align: center;
+        }
+
+        .gate-box {
+            background: rgba(0, 6, 18, .85);
+            border: 1px solid rgba(255, 215, 0, .3);
+            padding: 36px 40px;
+            width: min(420px, 92vw);
+            position: relative;
+        }
+
+        .gate-box::before,
+        .gate-box::after,
+        .gate-corner-bl,
+        .gate-corner-br {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: var(--y);
+            border-style: solid;
+        }
+
+        .gate-box::before {
+            top: -1px;
+            left: -1px;
+            border-width: 2px 0 0 2px;
+        }
+
+        .gate-box::after {
+            top: -1px;
+            right: -1px;
+            border-width: 2px 2px 0 0;
+        }
+
+        .gate-corner-bl {
+            bottom: -1px;
+            left: -1px;
+            border-width: 0 0 2px 2px;
+        }
+
+        .gate-corner-br {
+            bottom: -1px;
+            right: -1px;
+            border-width: 0 2px 2px 0;
+        }
+
+        .gate-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            letter-spacing: 4px;
+            color: var(--y);
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .gate-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, .4), transparent);
+            margin-bottom: 24px;
+        }
+
+        .gate-label {
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: rgba(200, 225, 255, .5);
+            margin-bottom: 8px;
+        }
+
+        .gate-input-wrap {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .gate-input {
+            width: 100%;
+            background: rgba(255, 215, 0, .04);
+            border: 1px solid rgba(255, 215, 0, .25);
+            color: var(--y);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 20px;
+            letter-spacing: 12px;
+            padding: 14px 20px;
+            outline: none;
+            text-align: center;
+            transition: border-color .2s, box-shadow .2s;
+            -webkit-text-security: disc;
+            text-security: disc;
+        }
+
+        .gate-input:focus {
+            border-color: rgba(255, 215, 0, .6);
+            box-shadow: 0 0 18px rgba(255, 215, 0, .15);
+        }
+
+        .gate-input.err {
+            border-color: var(--r);
+            animation: shake .32s ease;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            20% {
+                transform: translateX(-8px);
+            }
+
+            40% {
+                transform: translateX(8px);
+            }
+
+            60% {
+                transform: translateX(-5px);
+            }
+
+            80% {
+                transform: translateX(5px);
+            }
+        }
+
+        .gate-err {
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: var(--r);
+            text-align: center;
+            min-height: 18px;
+            margin-bottom: 16px;
+        }
+
+        .gate-btn {
+            width: 100%;
+            padding: 14px;
+            background: rgba(255, 215, 0, .06);
+            border: 1px solid rgba(255, 215, 0, .4);
+            color: var(--y);
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            letter-spacing: 4px;
+            cursor: pointer;
+            transition: background .2s, box-shadow .2s;
+        }
+
+        .gate-btn:hover {
+            background: rgba(255, 215, 0, .12);
+            box-shadow: 0 0 20px rgba(255, 215, 0, .2);
+        }
+
+        /* ── DASHBOARD ── */
+        #dashboard {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+            padding: 28px 36px;
+            display: none;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        #dashboard.active {
+            display: flex;
+        }
+
+        /* Header */
+        .db-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 1px solid rgba(0, 212, 255, .15);
+            padding-bottom: 20px;
+        }
+
+        .db-logo-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .db-hex {
+            width: 44px;
+            height: 44px;
+            border: 2px solid var(--y);
+            transform: rotate(45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 18px rgba(255, 215, 0, .4);
+        }
+
+        .db-hex svg {
+            transform: rotate(-45deg);
+        }
+
+        .db-logo-text {
+            font-family: 'Orbitron', monospace;
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, .4);
+        }
+
+        .db-logo-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 4px;
+            color: var(--y);
+        }
+
+        .db-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .db-badge {
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 3px;
+            color: var(--y);
+            border: 1px solid rgba(255, 215, 0, .35);
+            padding: 5px 14px;
+        }
+
+        .db-logout {
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: rgba(255, 51, 85, .8);
+            border: 1px solid rgba(255, 51, 85, .25);
+            background: transparent;
+            padding: 6px 16px;
+            cursor: pointer;
+            transition: border-color .2s, color .2s;
+        }
+
+        .db-logout:hover {
+            border-color: var(--r);
+            color: var(--r);
+        }
+
+        /* Stat cards */
+        .db-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: rgba(0, 6, 18, .7);
+            border: 1px solid var(--border);
+            padding: 20px 22px;
+            position: relative;
+        }
+
+        .stat-card::before,
+        .stat-card::after,
+        .stat-card .sc-bl,
+        .stat-card .sc-br {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: var(--c);
+            border-style: solid;
+        }
+
+        .stat-card::before {
+            top: -1px;
+            left: -1px;
+            border-width: 1.5px 0 0 1.5px;
+        }
+
+        .stat-card::after {
+            top: -1px;
+            right: -1px;
+            border-width: 1.5px 1.5px 0 0;
+        }
+
+        .stat-card .sc-bl {
+            bottom: -1px;
+            left: -1px;
+            border-width: 0 0 1.5px 1.5px;
+        }
+
+        .stat-card .sc-br {
+            bottom: -1px;
+            right: -1px;
+            border-width: 0 1.5px 1.5px 0;
+        }
+
+        .sc-label {
+            font-size: 9px;
+            letter-spacing: 3px;
+            color: rgba(200, 225, 255, .45);
+            margin-bottom: 10px;
+        }
+
+        .sc-val {
+            font-family: 'Orbitron', monospace;
+            font-size: 30px;
+            font-weight: 700;
+            color: var(--c);
+            text-shadow: 0 0 20px rgba(0, 212, 255, .4);
+        }
+
+        .sc-val.gold {
+            color: var(--y);
+            text-shadow: 0 0 20px rgba(255, 215, 0, .4);
+        }
+
+        .sc-val.green {
+            color: var(--g);
+            text-shadow: 0 0 20px rgba(57, 255, 20, .4);
+        }
+
+        /* Leaderboard table */
+        .db-section {
+            background: rgba(0, 6, 18, .7);
+            border: 1px solid var(--border);
+            padding: 24px;
+            flex: 1;
+        }
+
+        .db-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .db-section-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: var(--c);
+        }
+
+        .db-section-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .db-action-btn {
+            font-family: 'Orbitron', monospace;
+            font-size: 8px;
+            letter-spacing: 2px;
+            padding: 6px 14px;
+            border: 1px solid rgba(0, 212, 255, .25);
+            color: rgba(0, 212, 255, .7);
+            background: transparent;
+            cursor: pointer;
+            transition: border-color .2s, color .2s;
+        }
+
+        .db-action-btn:hover {
+            border-color: var(--c);
+            color: var(--c);
+        }
+
+        .db-action-btn.danger {
+            border-color: rgba(255, 51, 85, .25);
+            color: rgba(255, 51, 85, .7);
+        }
+
+        .db-action-btn.danger:hover {
+            border-color: var(--r);
+            color: var(--r);
+        }
+
+        .db-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0, 212, 255, .25), transparent);
+            margin-bottom: 20px;
+        }
+
+        /* Search */
+        .db-search-wrap {
+            margin-bottom: 16px;
+        }
+
+        .db-search {
+            width: 100%;
+            background: rgba(0, 212, 255, .04);
+            border: 1px solid rgba(0, 212, 255, .15);
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 13px;
+            padding: 10px 16px;
+            outline: none;
+            letter-spacing: 1px;
+            transition: border-color .2s;
+        }
+
+        .db-search:focus {
+            border-color: rgba(0, 212, 255, .5);
+        }
+
+        .db-search::placeholder {
+            color: rgba(200, 225, 255, .25);
+        }
+
+        /* Table */
+        .lb-wrap {
+            overflow-x: auto;
+        }
+
+        .lb-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .lb-table th {
+            font-family: 'Orbitron', monospace;
+            font-size: 8.5px;
+            letter-spacing: 2.5px;
+            color: rgba(0, 212, 255, .6);
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 212, 255, .12);
+            white-space: nowrap;
+        }
+
+        .lb-table td {
+            padding: 11px 14px;
+            border-bottom: 1px solid rgba(0, 212, 255, .06);
+            font-size: 13px;
+            letter-spacing: .5px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .lb-table tbody tr:hover td {
+            background: rgba(0, 212, 255, .04);
+        }
+
+        .lb-rank {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border: 1px solid currentColor;
+        }
+
+        .lb-rank.gold {
+            color: var(--y);
+            border-color: rgba(255, 215, 0, .5);
+        }
+
+        .lb-rank.silver {
+            color: #c0c0c0;
+            border-color: rgba(192, 192, 192, .5);
+        }
+
+        .lb-rank.bronze {
+            color: #cd7f32;
+            border-color: rgba(205, 127, 50, .5);
+        }
+
+        .lb-rank.norm {
+            color: rgba(200, 225, 255, .5);
+            border-color: rgba(200, 225, 255, .2);
+        }
+
+        .lb-score {
+            font-family: 'Orbitron', monospace;
+            font-size: 13px;
+            color: var(--c);
+        }
+
+        .lb-phone {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: rgba(200, 225, 255, .55);
+        }
+
+        .lb-ts {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: rgba(200, 225, 255, .35);
+        }
+
+        .lb-dept {
+            color: rgba(200, 225, 255, .7);
+        }
+
+        .lb-yr {
+            color: rgba(57, 255, 20, .7);
+            font-size: 11px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+        }
+
+        .empty-state-icon {
+            font-family: 'Orbitron', monospace;
+            font-size: 32px;
+            color: rgba(0, 212, 255, .2);
+            margin-bottom: 12px;
+        }
+
+        .empty-state-msg {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 3px;
+            color: rgba(200, 225, 255, .25);
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(0, 6, 18, .95);
+            border: 1px solid rgba(0, 212, 255, .4);
+            color: var(--c);
+            font-family: 'Orbitron', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            padding: 12px 24px;
+            opacity: 0;
+            transition: opacity .3s, transform .3s;
+            z-index: 999;
+            pointer-events: none;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            #dashboard {
+                padding: 16px;
+            }
+
+            .db-header {
+                flex-direction: column;
+            }
+
+            .lb-table td,
+            .lb-table th {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ══ PASSWORD GATE ══ -->
+    <div id="gate">
+        <div class="gate-logo">TECH<span>CHASE</span> <span style="color:var(--y);font-size:.65em">2K26</span></div>
+        <div class="gate-sub">◈ ADMIN ACCESS TERMINAL ◈</div>
+
+        <div class="gate-box">
+            <div class="gate-corner-bl"></div>
+            <div class="gate-corner-br"></div>
+            <div class="gate-title">AUTHENTICATION REQUIRED</div>
+            <div class="gate-divider"></div>
+            <div class="gate-label">ADMIN PASSWORD</div>
+            <div class="gate-input-wrap">
+                <input class="gate-input" type="password" id="gate-pass" placeholder="••••" maxlength="20"
+                    autocomplete="off">
+            </div>
+            <div class="gate-err" id="gate-err"></div>
+            <button class="gate-btn" onclick="checkPassword()">▸ AUTHENTICATE</button>
+        </div>
+    </div>
+
+    <!-- ══ DASHBOARD ══ -->
+    <div id="dashboard">
+
+        <!-- Header -->
+        <div class="db-header">
+            <div class="db-logo-row">
+                <div class="db-hex">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--y)" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="db-logo-text">TECHCHASE</div>
+                    <div class="db-logo-sub">ADMIN DASHBOARD · 2K26</div>
+                </div>
+            </div>
+            <div class="db-header-right">
+                <div class="db-badge">◈ ADMIN AUTHENTICATED</div>
+                <button class="db-logout" onclick="logout()">LOGOUT ›</button>
+            </div>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="db-stats" id="db-stats">
+            <div class="stat-card">
+                <div class="sc-bl"></div>
+                <div class="sc-br"></div>
+                <div class="sc-label">TOTAL AGENTS REGISTERED</div>
+                <div class="sc-val" id="sc-total">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="sc-bl"></div>
+                <div class="sc-br"></div>
+                <div class="sc-label">TOP SCORE</div>
+                <div class="sc-val gold" id="sc-top">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="sc-bl"></div>
+                <div class="sc-br"></div>
+                <div class="sc-label">MOST ACTIVE DEPT</div>
+                <div class="sc-val green" id="sc-dept" style="font-size:18px;padding-top:6px">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="sc-bl"></div>
+                <div class="sc-br"></div>
+                <div class="sc-label">LAST REGISTRATION</div>
+                <div class="sc-val" id="sc-last" style="font-size:14px;padding-top:8px;color:var(--c);">—</div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Table -->
+        <div class="db-section">
+            <div class="db-section-header">
+                <div class="db-section-title">◈ AGENT LEADERBOARD</div>
+                <div class="db-section-actions">
+                    <button class="db-action-btn" onclick="exportCSV()">EXPORT CSV</button>
+                    <button class="db-action-btn" onclick="refreshData()">REFRESH</button>
+                    <button class="db-action-btn danger" onclick="clearData()">CLEAR ALL</button>
+                </div>
+            </div>
+            <div class="db-divider"></div>
+
+            <div class="db-search-wrap">
+                <input class="db-search" type="text" id="db-search" placeholder="SEARCH BY NAME, ROLL, DEPT…"
+                    oninput="filterTable()">
+            </div>
+
+            <div class="lb-wrap">
+                <table class="lb-table" id="lb-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>AGENT NAME</th>
+                            <th>ROLL NO.</th>
+                            <th>DEPT</th>
+                            <th>YEAR</th>
+                            <th>PHONE</th>
+                            <th>SCORE</th>
+                            <th>REGISTERED AT</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lb-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        const ADMIN_PASS = 'meetmaru100406';
+        let allAgents = [];
+
+        /* ── AUTH ── */
+        function checkPassword() {
+            const val = document.getElementById('gate-pass').value;
+            const err = document.getElementById('gate-err');
+            const inp = document.getElementById('gate-pass');
+
+            if (val === ADMIN_PASS) {
+                err.textContent = '';
+                sessionStorage.setItem('tc_admin_auth', '1');
+                document.getElementById('gate').classList.add('hidden');
+                setTimeout(() => {
+                    document.getElementById('gate').style.display = 'none';
+                    document.getElementById('dashboard').classList.add('active');
+                    loadDashboard();
+                }, 600);
+            } else {
+                err.textContent = '⚠ INVALID CREDENTIALS — ACCESS DENIED';
+                inp.classList.add('err');
+                setTimeout(() => inp.classList.remove('err'), 500);
+                inp.value = '';
+                inp.focus();
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('tc_admin_auth');
+            document.getElementById('dashboard').classList.remove('active');
+            document.getElementById('gate').style.display = 'flex';
+            setTimeout(() => document.getElementById('gate').classList.remove('hidden'), 10);
+            document.getElementById('gate-pass').value = '';
+            document.getElementById('gate-err').textContent = '';
+        }
+
+        // Auto-login if already authenticated this session
+        if (sessionStorage.getItem('tc_admin_auth') === '1') {
+            document.getElementById('gate').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+            window.addEventListener('DOMContentLoaded', loadDashboard);
+        }
+
+        // Enter key support
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('gate-pass').addEventListener('keydown', e => {
+                if (e.key === 'Enter') checkPassword();
+            });
+        });
+
+        /* ── DATA ── */
+        function loadDashboard() {
+            try {
+                allAgents = JSON.parse(localStorage.getItem('tc_agents') || '[]');
+            } catch (e) { allAgents = []; }
+
+            // Sort by score desc
+            allAgents.sort((a, b) => (b.score || 0) - (a.score || 0));
+            updateStats();
+            renderTable(allAgents);
+        }
+
+        function refreshData() {
+            loadDashboard();
+            showToast('DATA REFRESHED');
+        }
+
+        function updateStats() {
+            document.getElementById('sc-total').textContent = allAgents.length;
+            document.getElementById('sc-top').textContent = allAgents.length ? allAgents[0].score : '—';
+
+            // Most active dept
+            if (allAgents.length) {
+                const counts = {};
+                allAgents.forEach(a => { counts[a.dept] = (counts[a.dept] || 0) + 1; });
+                const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+                document.getElementById('sc-dept').textContent = top ? top[0].replace('CSE (AI & ML)', 'AI&ML') : '—';
+            }
+
+            // Last registration
+            if (allAgents.length) {
+                const latest = [...allAgents].sort((a, b) => b.ts - a.ts)[0];
+                document.getElementById('sc-last').textContent = latest
+                    ? new Date(latest.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                    : '—';
+            }
+        }
+
+        function rankClass(i) {
+            if (i === 0) return 'gold';
+            if (i === 1) return 'silver';
+            if (i === 2) return 'bronze';
+            return 'norm';
+        }
+
+        function renderTable(agents) {
+            const body = document.getElementById('lb-body');
+            if (!agents.length) {
+                body.innerHTML = `<tr><td colspan="8">
+        <div class="empty-state">
+          <div class="empty-state-icon">◈</div>
+          <div class="empty-state-msg">NO AGENTS REGISTERED YET</div>
+        </div>
+      </td></tr>`;
+                return;
+            }
+
+            body.innerHTML = agents.map((a, i) => {
+                const rank = String(i + 1).padStart(2, '0');
+                const cls = rankClass(i);
+                const dt = new Date(a.ts);
+                const time = dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                return `<tr>
+        <td><span class="lb-rank ${cls}">${rank}</span></td>
+        <td><strong>${esc(a.name)}</strong></td>
+        <td>${esc(a.roll)}</td>
+        <td class="lb-dept">${esc(a.dept)}</td>
+        <td class="lb-yr">${esc(a.year)}</td>
+        <td class="lb-phone">${esc(a.phone || '—')}</td>
+        <td><span class="lb-score">${a.score || '—'}</span></td>
+        <td class="lb-ts">${time}</td>
+      </tr>`;
+            }).join('');
+        }
+
+        function esc(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function filterTable() {
+            const q = document.getElementById('db-search').value.trim().toLowerCase();
+            if (!q) { renderTable(allAgents); return; }
+            const filtered = allAgents.filter(a =>
+                (a.name || '').toLowerCase().includes(q) ||
+                (a.roll || '').toLowerCase().includes(q) ||
+                (a.dept || '').toLowerCase().includes(q) ||
+                (a.year || '').toLowerCase().includes(q)
+            );
+            renderTable(filtered);
+        }
+
+        function clearData() {
+            if (!confirm('CLEAR ALL AGENT DATA? This cannot be undone.')) return;
+            localStorage.removeItem('tc_agents');
+            localStorage.removeItem('tc_player');
+            allAgents = [];
+            updateStats();
+            renderTable([]);
+            showToast('ALL DATA CLEARED');
+        }
+
+        function exportCSV() {
+            if (!allAgents.length) { showToast('NO DATA TO EXPORT'); return; }
+            const headers = ['Rank', 'Name', 'Roll Number', 'Department', 'Year', 'Phone', 'Score', 'Registered At'];
+            const rows = allAgents.map((a, i) => [
+                i + 1,
+                `"${(a.name || '').replace(/"/g, '""')}"`,
+                `"${(a.roll || '').replace(/"/g, '""')}"`,
+                `"${(a.dept || '').replace(/"/g, '""')}"`,
+                a.year || '',
+                a.phone || '',
+                a.score || '',
+                `"${new Date(a.ts).toLocaleString('en-IN')}"`
+            ]);
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `techchase_agents_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('CSV EXPORTED');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+    </script>
+</body>
+
+</html>
