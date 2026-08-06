@@ -170,55 +170,10 @@
               <th>SCORE</th>
             </tr>
           </thead>
+          <!-- Populated live from GET /api/leaderboard when the modal opens. -->
           <tbody>
             <tr>
-              <td><span class="lb-rank gold">01</span></td>
-              <td>ARIA-7</td>
-              <td>CSE AI</td>
-              <td>5/5</td>
-              <td><span class="lb-score">9840</span></td>
-            </tr>
-            <tr>
-              <td><span class="lb-rank silver">02</span></td>
-              <td>NEXUS</td>
-              <td>IT</td>
-              <td>5/5</td>
-              <td><span class="lb-score">9210</span></td>
-            </tr>
-            <tr>
-              <td><span class="lb-rank bronze">03</span></td>
-              <td>PHANTOM</td>
-              <td>EXTC</td>
-              <td>4/5</td>
-              <td><span class="lb-score">7630</span></td>
-            </tr>
-            <tr>
-              <td><span class="lb-rank norm">04</span></td>
-              <td>ECHO-X</td>
-              <td>CSE</td>
-              <td>4/5</td>
-              <td><span class="lb-score">6900</span></td>
-            </tr>
-            <tr>
-              <td><span class="lb-rank norm">05</span></td>
-              <td>VORTEX</td>
-              <td>MECH</td>
-              <td>3/5</td>
-              <td><span class="lb-score">5250</span></td>
-            </tr>
-            <tr>
-              <td><span class="lb-rank norm">06</span></td>
-              <td>CIPHER</td>
-              <td>IT</td>
-              <td>3/5</td>
-              <td><span class="lb-score">4880</span></td>
-            </tr>
-            <tr>
-              <td><span class="lb-rank norm">07</span></td>
-              <td>ROGUE</td>
-              <td>CSE AI</td>
-              <td>2/5</td>
-              <td><span class="lb-score">3300</span></td>
+              <td colspan="5">LOADING LIVE STANDINGS…</td>
             </tr>
           </tbody>
         </table>
@@ -318,7 +273,7 @@
           </div>
           <div class="field-wrap">
             <input class="fi-ctrl" type="tel" id="phone" placeholder="Enter your phone number" autocomplete="off"
-              maxlength="10" inputmode="numeric">
+              maxlength="17" inputmode="numeric">
             <div class="field-err" id="err-phone">⚠ ENTER VALID 10-DIGIT INDIAN MOBILE NO.</div>
           </div>
         </div>
@@ -427,8 +382,7 @@
             LEADERBOARD
           </button>
 
-          <button type="button" class="nav-btn admin-btn" id="btn-dashboard"
-            onclick="window.open('./backend/dashboard.html','_blank')">
+          <button type="button" class="nav-btn admin-btn" id="btn-dashboard" onclick="openDashboard()">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7" />
               <rect x="14" y="3" width="7" height="7" />

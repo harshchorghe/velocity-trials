@@ -761,91 +761,135 @@
     <div id="toast"></div>
 
     <script>
-        const ADMIN_PASS = 'meetmaru100406';
+        /* Served from the backend at /dashboard, so the API is same-origin.
+           The fallback only matters if this file is opened directly off disk. */
+        const API_BASE = location.protocol === 'file:' ? 'http://localhost:4000' : '';
+        const TOKEN_KEY = 'tc_admin_token';
+
         let allAgents = [];
+        let serverStats = null;
 
-        /* ── AUTH ── */
-        function checkPassword() {
-            const val = document.getElementById('gate-pass').value;
-            const err = document.getElementById('gate-err');
+        function adminToken() { return sessionStorage.getItem(TOKEN_KEY); }
+
+        async function api(path, options = {}) {
+            const res = await fetch(API_BASE + path, {
+                ...options,
+                headers: {
+                    'content-type': 'application/json',
+                    ...(adminToken() ? { authorization: `Bearer ${adminToken()}` } : {}),
+                    ...(options.headers || {}),
+                },
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.message || `Request failed (${res.status})`);
+            return body;
+        }
+
+        /* ── AUTH ──
+           The password is verified by the server; this page never holds it. */
+        async function checkPassword() {
             const inp = document.getElementById('gate-pass');
+            const err = document.getElementById('gate-err');
+            const val = inp.value;
 
-            if (val === ADMIN_PASS) {
+            function reject(message) {
+                err.textContent = message;
+                inp.classList.add('err');
+                setTimeout(() => inp.classList.remove('err'), 500);
+                inp.value = '';
+                inp.focus();
+            }
+
+            if (!val) { reject('⚠ ENTER THE ADMIN PASSWORD'); return; }
+            err.textContent = 'AUTHENTICATING…';
+
+            try {
+                const { token } = await api('/api/admin/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ password: val }),
+                });
+                sessionStorage.setItem(TOKEN_KEY, token);
                 err.textContent = '';
-                sessionStorage.setItem('tc_admin_auth', '1');
                 document.getElementById('gate').classList.add('hidden');
                 setTimeout(() => {
                     document.getElementById('gate').style.display = 'none';
                     document.getElementById('dashboard').classList.add('active');
                     loadDashboard();
                 }, 600);
-            } else {
-                err.textContent = '⚠ INVALID CREDENTIALS — ACCESS DENIED';
-                inp.classList.add('err');
-                setTimeout(() => inp.classList.remove('err'), 500);
-                inp.value = '';
-                inp.focus();
+            } catch (e) {
+                reject('⚠ ' + (e.message || 'ACCESS DENIED').toUpperCase());
             }
         }
 
-        function logout() {
-            sessionStorage.removeItem('tc_admin_auth');
+        function showGate() {
+            sessionStorage.removeItem(TOKEN_KEY);
             document.getElementById('dashboard').classList.remove('active');
             document.getElementById('gate').style.display = 'flex';
             setTimeout(() => document.getElementById('gate').classList.remove('hidden'), 10);
             document.getElementById('gate-pass').value = '';
+        }
+
+        async function logout() {
+            try { await api('/api/admin/logout', { method: 'POST' }); } catch (e) { /* token already gone */ }
+            showGate();
             document.getElementById('gate-err').textContent = '';
         }
 
-        // Auto-login if already authenticated this session
-        if (sessionStorage.getItem('tc_admin_auth') === '1') {
-            document.getElementById('gate').style.display = 'none';
-            document.getElementById('dashboard').classList.add('active');
-            window.addEventListener('DOMContentLoaded', loadDashboard);
-        }
-
-        // Enter key support
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('gate-pass').addEventListener('keydown', e => {
                 if (e.key === 'Enter') checkPassword();
             });
+
+            // A token from earlier in this tab is only trusted if the server still honours it.
+            if (adminToken()) {
+                document.getElementById('gate').style.display = 'none';
+                document.getElementById('gate').classList.add('hidden');
+                document.getElementById('dashboard').classList.add('active');
+                loadDashboard();
+            }
         });
 
         /* ── DATA ── */
-        function loadDashboard() {
+        async function loadDashboard() {
             try {
-                allAgents = JSON.parse(localStorage.getItem('tc_agents') || '[]');
-            } catch (e) { allAgents = []; }
-
-            // Sort by score desc
-            allAgents.sort((a, b) => (b.score || 0) - (a.score || 0));
-            updateStats();
-            renderTable(allAgents);
+                const data = await api('/api/admin/agents');
+                allAgents = data.agents || [];
+                serverStats = data.stats || null;
+                allAgents.sort((a, b) => (b.score || 0) - (a.score || 0));
+                updateStats();
+                renderTable(allAgents);
+            } catch (e) {
+                // An expired or rejected token drops straight back to the gate.
+                showGate();
+                document.getElementById('gate-err').textContent = '⚠ ' + (e.message || 'SESSION EXPIRED').toUpperCase();
+            }
         }
 
-        function refreshData() {
-            loadDashboard();
+        async function refreshData() {
+            await loadDashboard();
             showToast('DATA REFRESHED');
         }
 
         function updateStats() {
-            document.getElementById('sc-total').textContent = allAgents.length;
+            document.getElementById('sc-total').textContent =
+                serverStats ? serverStats.totalPlayers : allAgents.length;
             document.getElementById('sc-top').textContent = allAgents.length ? allAgents[0].score : '—';
 
-            // Most active dept
             if (allAgents.length) {
                 const counts = {};
                 allAgents.forEach(a => { counts[a.dept] = (counts[a.dept] || 0) + 1; });
                 const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
                 document.getElementById('sc-dept').textContent = top ? top[0].replace('CSE (AI & ML)', 'AI&ML') : '—';
-            }
 
-            // Last registration
-            if (allAgents.length) {
-                const latest = [...allAgents].sort((a, b) => b.ts - a.ts)[0];
+                const latest = [...allAgents].sort(
+                    (a, b) => new Date(b.registeredAt) - new Date(a.registeredAt)
+                )[0];
                 document.getElementById('sc-last').textContent = latest
-                    ? new Date(latest.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                    ? new Date(latest.registeredAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
                     : '—';
+            } else {
+                document.getElementById('sc-dept').textContent = '—';
+                document.getElementById('sc-last').textContent = '—';
             }
         }
 
@@ -871,7 +915,7 @@
             body.innerHTML = agents.map((a, i) => {
                 const rank = String(i + 1).padStart(2, '0');
                 const cls = rankClass(i);
-                const dt = new Date(a.ts);
+                const dt = new Date(a.registeredAt);
                 const time = dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
                 return `<tr>
         <td><span class="lb-rank ${cls}">${rank}</span></td>
@@ -903,13 +947,9 @@
         }
 
         function clearData() {
-            if (!confirm('CLEAR ALL AGENT DATA? This cannot be undone.')) return;
-            localStorage.removeItem('tc_agents');
-            localStorage.removeItem('tc_player');
-            allAgents = [];
-            updateStats();
-            renderTable([]);
-            showToast('ALL DATA CLEARED');
+            // Agent data now lives in the server's database, not this browser, so
+            // there is deliberately no button that can wipe a live event's results.
+            showToast('DATA IS SERVER-SIDE — RESET WITH: npm run db:reset');
         }
 
         function exportCSV() {
@@ -923,7 +963,7 @@
                 a.year || '',
                 a.phone || '',
                 a.score || '',
-                `"${new Date(a.ts).toLocaleString('en-IN')}"`
+                `"${new Date(a.registeredAt).toLocaleString('en-IN')}"`
             ]);
             const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
             const blob = new Blob([csv], { type: 'text/csv' });

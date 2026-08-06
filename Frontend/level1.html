@@ -91,7 +91,8 @@
       <!-- RIGHT: GESTURE CODE TERMINAL -->
       <div class="gesture-panel">
         <div class="panel-hd">◈ GESTURE INPUT TERMINAL</div>
-        <div class="gesture-sub">Use Hand Gestures (WebCam or Gesture Pad below) to enter the Final Secret Code!</div>
+        <div class="gesture-sub">Use Hand Gestures (WebCam or Gesture Pad below) to enter the Final Secret Code! Digits 6–9 need
+          both hands — e.g. 6 = open palm + one finger.</div>
 
         <!-- CAMERA / GESTURE PREVIEW -->
         <div class="webcam-box">
@@ -104,12 +105,17 @@
         <div class="gesture-pad-wrap">
           <div class="pad-label">HAND GESTURE RECOGNITION PAD (TOUCH / MOUSE / CAMERA):</div>
           <div class="gesture-btn-grid">
+            <button class="g-btn" onclick="inputGestureDigit(0)"><span class="g-hand">✊</span> 0 (Fist)</button>
             <button class="g-btn" onclick="inputGestureDigit(1)"><span class="g-hand">☝️</span> 1 (Index)</button>
             <button class="g-btn" onclick="inputGestureDigit(2)"><span class="g-hand">✌️</span> 2 (Victory)</button>
             <button class="g-btn" onclick="inputGestureDigit(3)"><span class="g-hand">🤟</span> 3 (Three)</button>
             <button class="g-btn" onclick="inputGestureDigit(4)"><span class="g-hand">🖐️</span> 4 (Four)</button>
             <button class="g-btn" onclick="inputGestureDigit(5)"><span class="g-hand">✋</span> 5 (Open Palm)</button>
-            <button class="g-btn" onclick="inputGestureDigit(0)"><span class="g-hand">✊</span> 0 (Fist)</button>
+            <!-- 6-9 are two-handed: an open palm plus 1-4 fingers on the other hand. -->
+            <button class="g-btn" onclick="inputGestureDigit(6)"><span class="g-hand">✋☝️</span> 6 (5+1)</button>
+            <button class="g-btn" onclick="inputGestureDigit(7)"><span class="g-hand">✋✌️</span> 7 (5+2)</button>
+            <button class="g-btn" onclick="inputGestureDigit(8)"><span class="g-hand">✋🤟</span> 8 (5+3)</button>
+            <button class="g-btn" onclick="inputGestureDigit(9)"><span class="g-hand">✋🖐️</span> 9 (5+4)</button>
           </div>
         </div>
 

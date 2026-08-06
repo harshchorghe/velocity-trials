@@ -1,4 +1,52 @@
 /* ══════════════════════════════
+   API CLIENT
+   The backend is authoritative for every score-bearing action. When the game is
+   served from the backend itself (port 4000) requests are same-origin; the
+   explicit host is the fallback for opening the pages off a separate dev server.
+══════════════════════════════ */
+const API_BASE = (location.port === '4000' || location.protocol === 'file:')
+    ? (location.protocol === 'file:' ? 'http://localhost:4000' : '')
+    : `${location.protocol}//${location.hostname}:4000`;
+
+const API = {
+    get token() { return localStorage.getItem('tc_token'); },
+    set token(v) {
+        if (v) localStorage.setItem('tc_token', v);
+        else localStorage.removeItem('tc_token');
+    },
+
+    async request(path, { method = 'GET', body } = {}) {
+        const res = await fetch(API_BASE + path, {
+            method,
+            headers: {
+                'content-type': 'application/json',
+                ...(API.token ? { authorization: `Bearer ${API.token}` } : {}),
+            },
+            ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const err = new Error(data.message || `Request failed (${res.status})`);
+            err.code = data.error || 'ERROR';
+            err.status = res.status;
+            throw err;
+        }
+        return data;
+    },
+
+    get(path) { return API.request(path); },
+    post(path, body) { return API.request(path, { method: 'POST', body }); },
+
+    /** True when the backend is reachable — used to warn rather than fail silently. */
+    async isOnline() {
+        try {
+            await API.get('/api/health');
+            return true;
+        } catch (e) { return false; }
+    },
+};
+
+/* ══════════════════════════════
    AUDIO ENGINE — Web Audio API (no external files)
 ══════════════════════════════ */
 const AUDIO = (function () {
@@ -158,12 +206,13 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
     el.addEventListener('click', e => { if (e.target === el && el.id !== 'modal-auth') closeModal(el.id) });
 });
 
-/* ══ INTRO VIDEO SEQUENCE ══ */
+/* ══ INTRO VIDEO SEQUENCE ══ (index.html only) */
 (function () {
     const intro = document.getElementById('intro-screen');
     const vid = document.getElementById('intro-video');
     const pfill = document.getElementById('intro-pfill');
     const skip = document.getElementById('intro-skip');
+    if (!intro || !vid || !pfill || !skip) return;
     const DURATION = 7000; // 7 seconds intro
 
     // Try to play intro video (may be blocked by autoplay policy)
@@ -233,11 +282,45 @@ function startBoot() {
     }, 5000);
 }
 
-/* ══ NAV BUTTONS ══ */
-document.getElementById('btn-briefing').addEventListener('click', () => { AUDIO.sfxScifi(); openModal('modal-mission'); });
-document.getElementById('btn-leaderboard').addEventListener('click', () => { AUDIO.sfxScifi(); openModal('modal-leaderboard'); });
-document.getElementById('btn-exit').addEventListener('click', () => { AUDIO.sfxError(); exitSystem(); });
-document.getElementById('rules-link').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openModal('modal-mission') });
+/* ══ NAV BUTTONS ══ (index.html only) */
+document.getElementById('btn-briefing')?.addEventListener('click', () => { AUDIO.sfxScifi(); openModal('modal-mission'); });
+document.getElementById('btn-leaderboard')?.addEventListener('click', () => {
+    AUDIO.sfxScifi();
+    openModal('modal-leaderboard');
+    loadLeaderboard();
+});
+document.getElementById('btn-exit')?.addEventListener('click', () => { AUDIO.sfxError(); exitSystem(); });
+document.getElementById('rules-link')?.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openModal('modal-mission') });
+
+/* ══ LEADERBOARD (live from the backend) ══ */
+function escapeHtml(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function loadLeaderboard() {
+    const body = document.querySelector('#modal-leaderboard .lb-table tbody');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="5">LOADING LIVE STANDINGS…</td></tr>';
+
+    try {
+        const { rows } = await API.get('/api/leaderboard?limit=10');
+        if (!rows.length) {
+            body.innerHTML = '<tr><td colspan="5">NO AGENTS HAVE REGISTERED YET</td></tr>';
+            return;
+        }
+        const rankClass = (i) => ['gold', 'silver', 'bronze'][i] || 'norm';
+        body.innerHTML = rows.map((r, i) => `
+            <tr>
+              <td><span class="lb-rank ${rankClass(i)}">${String(r.rank).padStart(2, '0')}</span></td>
+              <td>${escapeHtml(r.agent)}</td>
+              <td>${escapeHtml(r.department)}</td>
+              <td>${r.zonesCleared}/${r.totalZones}</td>
+              <td><span class="lb-score">${r.score}</span></td>
+            </tr>`).join('');
+    } catch (err) {
+        body.innerHTML = `<tr><td colspan="5">LEADERBOARD OFFLINE — ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
 
 /* ══ RIPPLE ══ */
 document.querySelectorAll('.start-btn,.nav-btn,.modal-close,.intro-skip').forEach(btn => {
@@ -263,6 +346,7 @@ document.querySelectorAll('.start-btn,.nav-btn,.modal-close,.intro-skip').forEac
         "Are you ready, Agent...",
     ];
     const el = document.getElementById('echo-text');
+    if (!el) return;
     let mi = 0, ci = 0, typing = true;
     function tick() {
         const msg = msgs[mi];
@@ -282,6 +366,7 @@ document.querySelectorAll('.start-btn,.nav-btn,.modal-close,.intro-skip').forEac
 /* ══ COUNTDOWN TIMER ══ */
 (function () {
     const el = document.getElementById('stat-timer');
+    if (!el) return;
     const end = Date.now() + 5.5 * 3600 * 1000;
     function update() {
         const rem = Math.max(0, end - Date.now());
@@ -297,6 +382,7 @@ document.querySelectorAll('.start-btn,.nav-btn,.modal-close,.intro-skip').forEac
 /* ══ AGENT COUNT FLICKER ══ */
 (function () {
     const el = document.getElementById('stat-agents');
+    if (!el) return;
     function flicker() {
         const cur = parseInt(el.textContent, 10) || 247;
         el.textContent = Math.min(300, Math.max(210, cur + (Math.random() > .5 ? 1 : -1)));
@@ -320,13 +406,32 @@ function updateProgress() {
     document.getElementById('fp-fill').style.width = pct + '%';
     document.getElementById('fp-pct').textContent = pct + '%';
 }
+/* Normalize pasted/typed numbers: strip non-digits and a leading 0 / +91 / 91
+   trunk/country-code prefix so a correctly-typed number never gets rejected
+   just because maxlength cut off a real digit before the prefix was stripped. */
+function sanitizePhone(raw) {
+    let d = raw.replace(/\D/g, '');
+    if (d.length > 10) {
+        if (d.startsWith('91') && d.length === 12) d = d.slice(2);
+        else if (d.startsWith('091') && d.length === 13) d = d.slice(3);
+        else if (d.startsWith('0') && d.length === 11) d = d.slice(1);
+        else d = d.slice(-10);
+    }
+    return d;
+}
+document.getElementById('phone')?.addEventListener('input', () => {
+    const inp = document.getElementById('phone');
+    const clean = sanitizePhone(inp.value);
+    if (clean !== inp.value) inp.value = clean;
+});
+
 ['playerName', 'rollNumber', 'phone'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => { updateProgress(); AUDIO.sfxType(); });
+    document.getElementById(id)?.addEventListener('input', () => { updateProgress(); AUDIO.sfxType(); });
 });
 ['department', 'year'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => { updateProgress(); AUDIO.sfxClick(); });
+    document.getElementById(id)?.addEventListener('change', () => { updateProgress(); AUDIO.sfxClick(); });
 });
-document.getElementById('agree').addEventListener('change', updateProgress);
+document.getElementById('agree')?.addEventListener('change', updateProgress);
 
 /* ══ FIELD VALIDATION ══ */
 function setField(inputId, errId, valid) {
@@ -347,16 +452,16 @@ function validateField(id) {
     }
 }
 ['playerName', 'rollNumber', 'phone'].forEach(id => {
-    document.getElementById(id).addEventListener('blur', () => validateField(id));
-    document.getElementById(id).addEventListener('input', () => {
+    document.getElementById(id)?.addEventListener('blur', () => validateField(id));
+    document.getElementById(id)?.addEventListener('input', () => {
         if (document.getElementById(id).classList.contains('err')) validateField(id);
         updateProgress();
     });
 });
 ['department', 'year'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => { validateField(id); updateProgress(); });
+    document.getElementById(id)?.addEventListener('change', () => { validateField(id); updateProgress(); });
 });
-document.getElementById('phone').addEventListener('keypress', e => { if (!/[0-9]/.test(e.key)) e.preventDefault() });
+document.getElementById('phone')?.addEventListener('keypress', e => { if (!/[0-9]/.test(e.key)) e.preventDefault() });
 
 function validateAll() {
     const r = ['playerName', 'rollNumber', 'department', 'year', 'phone'].map(id => validateField(id));
@@ -412,21 +517,40 @@ function runAuthSequence(name, roll, dept, yr) {
 }
 
 /* ══ FORM SUBMIT & START MISSION ══ */
-function handleStartMission(e) {
+async function handleStartMission(e) {
     if (e) { e.preventDefault(); e.stopPropagation(); }
     if (!validateAll()) { AUDIO.sfxError(); return false; }
     AUDIO.sfxSuccess();
+
     const n = document.getElementById('playerName').value.trim();
     const r = document.getElementById('rollNumber').value.trim();
     const d = document.getElementById('department').value;
     const y = document.getElementById('year').value;
+    const phone = document.getElementById('phone').value.trim();
     const btn = document.getElementById('startBtn'), label = document.getElementById('btn-label');
     if (btn) btn.disabled = true;
     if (label) label.textContent = 'AUTHENTICATING…';
-    setTimeout(() => {
+
+    try {
+        // Registration is the login: the returned token authorises every later call.
+        const res = await API.post('/api/register', {
+            name: n, phone, rollNumber: r, department: d, year: y,
+        });
+        API.token = res.token;
         runAuthSequence(n, r, d, y);
-        setTimeout(() => { if (btn) btn.disabled = false; if (label) label.textContent = 'START MISSION'; }, 500);
-    }, 350);
+    } catch (err) {
+        AUDIO.sfxError();
+        showAlert(
+            'error',
+            'AUTHENTICATION FAILED',
+            err.status
+                ? err.message
+                : 'Mission control is offline. Start the backend (npm run dev in Backend/) and try again.'
+        );
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = 'START MISSION';
+    }
     return false;
 }
 
@@ -517,9 +641,11 @@ function exitSystem() {
     frame();
 })();
 
-/* ══ GLOBE CANVAS ══ */
+/* ══ GLOBE CANVAS ══ (index.html only) */
 (function () {
-    const cvs = document.getElementById('gc'), ctx = cvs.getContext('2d');
+    const cvs = document.getElementById('gc');
+    if (!cvs) return;
+    const ctx = cvs.getContext('2d');
     const W = cvs.width, H = cvs.height, cx = W / 2, cy = H / 2, R = 78;
     let angle = 0;
 
@@ -627,7 +753,8 @@ const GAME_STATE = {
         timer: 0,
         interval: null,
         clues: { 1: false, 2: false, 3: false },
-        code: [2, 0, 2, 6],
+        solvedCount: 0,
+        // The secret code deliberately lives only on the server.
         entered: []
     },
     level2: {
@@ -641,6 +768,8 @@ const GAME_STATE = {
         lives: 3,
         crystals: 0,
         activePower: 'sprint', // 'sprint', 'jump', 'fly'
+        assignedPower: null,   // set by the server on qualification — one per player
+        gameOver: false,
         isJumping: false,
         isFlying: false,
         isSprinting: false,
@@ -665,7 +794,10 @@ const GAME_STATE = {
         animFrame: null
     },
     level3: {
-        selectedWeapon: 'sword',
+        selectedWeapon: null,
+        seq: 1,          // monotonic action id — makes retries idempotent server-side
+        pending: false,
+        finished: false,
         bossHp: 100,
         playerHp: 100,
         bossX: 700,
@@ -714,39 +846,93 @@ function startLevel1() {
     initWebcamScanner();
 }
 
-function verifyClue(num) {
-    const val = document.getElementById(`clue${num}-input`).value.trim();
-    const statusEl = document.getElementById(`clue${num}-status`);
-    const cardEl = document.getElementById(`clue-card-${num}`);
+/** Paints the three clue cards to match the server's solvedCount. */
+function applyClueProgress(solvedCount) {
+    GAME_STATE.level1.solvedCount = solvedCount;
+    for (let n = 1; n <= 3; n++) {
+        const card = document.getElementById(`clue-card-${n}`);
+        const input = document.getElementById(`clue${n}-input`);
+        const btn = document.getElementById(`clue${n}-btn`);
+        const status = document.getElementById(`clue${n}-status`);
+        if (!card || !input || !status) continue;
 
-    if (val.length >= 4) {
-        AUDIO.sfxSuccess();
-        GAME_STATE.level1.clues[num] = true;
-        cardEl.classList.remove('active');
-        cardEl.classList.add('solved');
-        statusEl.textContent = 'STATUS: SOLVED ✓';
-        statusEl.style.color = '#39ff14';
-
-        // Unlock next clue card if applicable
-        if (num < 3) {
-            const nextNum = num + 1;
-            const nextCard = document.getElementById(`clue-card-${nextNum}`);
-            const nextInput = document.getElementById(`clue${nextNum}-input`);
-            const nextBtn = document.getElementById(`clue${nextNum}-btn`);
-            const nextStatus = document.getElementById(`clue${nextNum}-status`);
-
-            nextCard.classList.remove('locked');
-            nextCard.classList.add('active');
-            nextInput.disabled = false;
-            if (nextBtn) nextBtn.disabled = false;
-            nextStatus.textContent = 'STATUS: UNLOCKED — SEEK LOCATION';
-            nextStatus.style.color = '#00d4ff';
+        card.classList.remove('active', 'solved', 'locked');
+        if (n <= solvedCount) {
+            GAME_STATE.level1.clues[n] = true;
+            card.classList.add('solved');
+            input.disabled = true;
+            if (btn) btn.disabled = true;
+            status.textContent = 'STATUS: SOLVED ✓';
+            status.style.color = '#39ff14';
+        } else if (n === solvedCount + 1) {
+            card.classList.add('active');
+            input.disabled = false;
+            if (btn) btn.disabled = false;
+            status.textContent = 'STATUS: UNLOCKED — SEEK LOCATION';
+            status.style.color = '#00d4ff';
         } else {
-            showAlert('success', 'CLUES SOLVED', 'All 3 clues verified! Enter the Secret Code using the Hand Gesture Pad.');
+            card.classList.add('locked');
+            input.disabled = true;
+            if (btn) btn.disabled = true;
+            status.textContent = `STATUS: LOCKED (SOLVE CLUE ${n - 1} FIRST)`;
+            status.style.color = '';
         }
-    } else {
+    }
+}
+
+/** Pulls clue text and unlock state from the server — locked clues arrive as null. */
+async function loadClueBoard() {
+    try {
+        const { clues } = await API.get('/api/level1/clues');
+        let solvedCount = 0;
+        clues.forEach((c) => {
+            if (c.solved) solvedCount++;
+            const textEl = document.querySelector(`#clue-card-${c.index} .clue-text`);
+            if (textEl && c.text) textEl.textContent = c.text;
+        });
+        applyClueProgress(solvedCount);
+    } catch (err) {
+        showAlert('error', 'CONNECTION LOST',
+            err.status ? err.message : 'Cannot reach mission control. Start the backend and reload.');
+    }
+}
+
+async function verifyClue(num) {
+    const input = document.getElementById(`clue${num}-input`);
+    const statusEl = document.getElementById(`clue${num}-status`);
+    const val = input ? input.value.trim() : '';
+
+    if (!val) {
         AUDIO.sfxError();
-        showAlert('error', 'INVALID CLUE CODE', 'Please enter a valid 4-digit code found at the clue location.');
+        showAlert('error', 'CODE REQUIRED', 'Enter the code found at the clue location.');
+        return;
+    }
+
+    statusEl.textContent = 'STATUS: VERIFYING…';
+    statusEl.style.color = '#00d4ff';
+
+    try {
+        // The server holds the answer — a wrong code cannot be talked past here.
+        const res = await API.post('/api/level1/clue', { clueIndex: num, code: val });
+        if (res.correct) {
+            AUDIO.sfxSuccess();
+            applyClueProgress(res.solvedCount);
+            if (res.allCluesSolved) {
+                showAlert('success', 'CLUES SOLVED',
+                    'All 3 clues verified! Enter the Secret Code using the Hand Gesture Pad.');
+            }
+        } else {
+            AUDIO.sfxError();
+            statusEl.textContent = 'STATUS: REJECTED ✕';
+            statusEl.style.color = '#ff3366';
+            showAlert('error', 'INVALID CLUE CODE',
+                'That code was not accepted. Re-check the code at the clue location.');
+        }
+    } catch (err) {
+        AUDIO.sfxError();
+        applyClueProgress(GAME_STATE.level1.solvedCount || 0);
+        showAlert('error', 'VERIFICATION FAILED',
+            err.status ? err.message : 'Cannot reach mission control. Check the backend is running.');
     }
 }
 
@@ -762,6 +948,10 @@ function clearGestureCode() {
     AUDIO.sfxClick();
     GAME_STATE.level1.entered = [];
     updateGestureSlots();
+    // Keep the server-side buffer in step with the visible slots.
+    if (gestureSocket && gestureSocket.readyState === WebSocket.OPEN) {
+        gestureSocket.send(JSON.stringify({ type: 'clear' }));
+    }
 }
 
 function updateGestureSlots() {
@@ -777,24 +967,44 @@ function updateGestureSlots() {
     }
 }
 
-function submitFinalGestureCode() {
+async function submitFinalGestureCode() {
     if (GAME_STATE.level1.entered.length < 4) {
         AUDIO.sfxError();
         showAlert('error', 'INCOMPLETE GESTURE CODE', 'Please input a full 4-digit gesture sequence.');
         return;
     }
 
-    const enteredStr = GAME_STATE.level1.entered.join('');
-    const targetStr = GAME_STATE.level1.code.join('');
+    const code = GAME_STATE.level1.entered.join('');
+    try {
+        const res = await API.post('/api/level1/code', { code });
+        if (!res.accepted) {
+            AUDIO.sfxError();
+            clearGestureCode();
+            showAlert('error', 'SECRET CODE REJECTED',
+                'Gesture code mismatch. Re-check the Master Code from Clue 03.');
+            return;
+        }
 
-    if (enteredStr === targetStr || GAME_STATE.level1.entered.length === 4) {
         AUDIO.sfxSuccess();
         clearInterval(GAME_STATE.level1.interval);
-        document.getElementById('lvl1-qualify-banner').style.display = 'block';
-        showAlert('success', 'GESTURE ENTRY ACCEPTED', 'Level 1 complete! You qualified in the top performance bracket.');
-    } else {
+        onLevel1Complete(res);
+    } catch (err) {
         AUDIO.sfxError();
-        showAlert('error', 'SECRET CODE REJECTED', 'Gesture code mismatch. Try secret code [2 - 0 - 2 - 6].');
+        showAlert('error', 'SUBMISSION FAILED',
+            err.status ? err.message : 'Cannot reach mission control. Check the backend is running.');
+    }
+}
+
+/** Shared by the manual pad and the gesture WebSocket, which both finish Level 1. */
+function onLevel1Complete(res) {
+    const banner = document.getElementById('lvl1-qualify-banner');
+    if (res.qualified) {
+        if (banner) banner.style.display = 'block';
+        showAlert('success', 'LEVEL 1 QUALIFIED',
+            `Rank #${res.rank} — you advance to The Lost Velocity City.`);
+    } else {
+        showAlert('error', 'QUALIFICATION MISSED',
+            `You finished at rank #${res.rank}, outside the qualifying bracket. Mission over, Agent.`);
     }
 }
 
@@ -815,6 +1025,143 @@ function initWebcamScanner() {
     } else {
         statusText.textContent = '🖐️ GESTURE SCANNER: READY (USE TOUCH / MOUSE GESTURE PAD BELOW)';
     }
+}
+
+/* ══════════════════════════════════════════════════
+   HAND GESTURE RECOGNITION — MediaPipe Hands (client) +
+   backend WebSocket (server-side validation of the pose)
+══════════════════════════════════════════════════ */
+function gestureSocketUrl() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const host = API_BASE ? API_BASE.replace(/^https?:\/\//, '') : location.host;
+    // The token lets the socket bank confirmed digits against this player's session.
+    const token = API.token ? `?token=${encodeURIComponent(API.token)}` : '';
+    return `${proto}://${host}/ws/gesture${token}`;
+}
+
+let gestureSocket = null;
+
+function connectGestureSocket(handlers) {
+    try {
+        gestureSocket = new WebSocket(gestureSocketUrl());
+        gestureSocket.addEventListener('message', (ev) => {
+            let msg;
+            try { msg = JSON.parse(ev.data); } catch (e) { return; }
+            if (msg.type === 'preview') handlers.onPreview(msg);
+            else if (msg.type === 'confirmed') handlers.onConfirmed(msg);
+            else if (msg.type === 'code') handlers.onCode(msg);
+            else if (msg.type === 'codeResult') handlers.onCodeResult(msg);
+        });
+    } catch (e) { gestureSocket = null; }
+}
+
+function sendHands(hands) {
+    if (gestureSocket && gestureSocket.readyState === WebSocket.OPEN) {
+        gestureSocket.send(JSON.stringify({ type: 'landmarks', hands }));
+    }
+}
+
+function initGestureRecognition() {
+    const video = document.getElementById('webcam-feed');
+    const overlay = document.getElementById('gesture-overlay-canvas');
+    const statusText = document.getElementById('cam-status-text');
+    if (!video || typeof Hands === 'undefined' || typeof Camera === 'undefined') {
+        initWebcamScanner();
+        return;
+    }
+
+    const octx = overlay ? overlay.getContext('2d') : null;
+
+    connectGestureSocket({
+        onPreview: (preview) => {
+            if (!statusText) return;
+            if (preview.digit !== null) {
+                statusText.textContent =
+                    `🎥 READING GESTURE: ${preview.digit} — HOLD STEADY (${preview.progress}%)`;
+            } else if (preview.handsSeen >= 2) {
+                statusText.textContent = '🎥 TOO MANY FINGERS — SHOW 0-9 ACROSS BOTH HANDS';
+            } else {
+                statusText.textContent = '🎥 SCANNER ACTIVE — SHOW 0-9 (USE BOTH HANDS FOR 6-9)';
+            }
+        },
+        onConfirmed: (confirmed) => {
+            if (typeof confirmed.digit !== 'number') return;
+            AUDIO.sfxClick();
+            if (statusText) statusText.textContent = `✅ GESTURE CONFIRMED: ${confirmed.digit}`;
+        },
+        // The server owns the buffer, so the slots mirror its state rather than
+        // being appended to locally — otherwise the two could drift apart.
+        onCode: (msg) => {
+            GAME_STATE.level1.entered = Array.isArray(msg.digits) ? msg.digits.slice() : [];
+            updateGestureSlots();
+        },
+        onCodeResult: (res) => {
+            GAME_STATE.level1.entered = [];
+            updateGestureSlots();
+            if (res.accepted) {
+                AUDIO.sfxSuccess();
+                clearInterval(GAME_STATE.level1.interval);
+                onLevel1Complete(res);
+            } else {
+                AUDIO.sfxError();
+                const msg = res.reason === 'NOT_AUTHENTICATED'
+                    ? 'This browser has no active mission session. Register on the portal first.'
+                    : (res.message || 'Gesture code mismatch. Re-check the Master Code from Clue 03.');
+                showAlert('error', 'SECRET CODE REJECTED', msg);
+            }
+        },
+    });
+
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({
+        // Two hands, because digits above 5 need both — 6 is a full palm plus
+        // one finger, and the secret code contains a 6.
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+    });
+    hands.onResults((results) => {
+        const detected = results.multiHandLandmarks || [];
+
+        if (octx && overlay) {
+            octx.clearRect(0, 0, overlay.width, overlay.height);
+            octx.fillStyle = '#39ff14';
+            detected.forEach(hand => {
+                hand.forEach(pt => {
+                    // video is mirrored (scaleX(-1)) but the overlay canvas isn't, so flip x to match
+                    const px = (1 - pt.x) * overlay.width;
+                    const py = pt.y * overlay.height;
+                    octx.beginPath();
+                    octx.arc(px, py, 3, 0, Math.PI * 2);
+                    octx.fill();
+                });
+            });
+        }
+
+        sendHands(detected.map(hand => hand.map(pt => ({ x: pt.x, y: pt.y, z: pt.z }))));
+    });
+
+    const camera = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 320,
+        height: 240
+    });
+
+    if (overlay) {
+        overlay.width = overlay.clientWidth || 320;
+        overlay.height = overlay.clientHeight || 180;
+    }
+
+    camera.start()
+        .then(() => {
+            if (statusText) statusText.textContent = '🎥 CAMERA GESTURE SCANNER: ACTIVE (HAND RECOGNITION ONLINE)';
+        })
+        .catch(() => {
+            if (statusText) statusText.textContent = '🖐️ GESTURE SCANNER: READY (USE TOUCH / MOUSE GESTURE PAD BELOW)';
+        });
 }
 
 /* ══════════════════════════════════════════════════
@@ -848,7 +1195,50 @@ function handleLvl2Keyup(e) {
     keysPressed[e.key.toLowerCase()] = false;
 }
 
+/** Server-assigned power names map onto the local trigger keys. */
+const POWER_KEYS = { SPRINT: 'sprint', JUMP: 'jump', FLIGHT: 'fly' };
+const POWER_LABELS = {
+    SPRINT: 'SPRINT (SPEED BOOST 2.5x)',
+    JUMP: 'HIGH JUMP (OVER OBSTACLES)',
+    FLIGHT: 'FLIGHT (HOVER OVER HAZARDS)',
+};
+
+async function loadLevel2State() {
+    try {
+        const s = await API.get('/api/level2');
+        const st = GAME_STATE.level2;
+        st.lives = s.lives;
+        st.crystals = s.crystalsCollected;
+        st.assignedPower = s.power;
+        st.activePower = POWER_KEYS[s.power] || 'sprint';
+        st.gameOver = s.failed;
+
+        // Crystals already banked on a previous visit stay banked.
+        (s.collectedIndexes || []).forEach((i) => {
+            if (st.crystalsList[i]) st.crystalsList[i].collected = true;
+        });
+
+        renderLives(s.lives);
+        const crystalEl = document.getElementById('lvl2-crystals');
+        if (crystalEl) crystalEl.textContent = `💎 ${s.crystalsCollected} / 3`;
+        const badge = document.getElementById('power-name-text');
+        if (badge) badge.textContent = POWER_LABELS[s.power] || s.power;
+    } catch (err) {
+        showAlert('error', 'LEVEL 2 LOCKED',
+            err.status ? err.message : 'Cannot reach mission control. Check the backend is running.');
+    }
+}
+
 function triggerSpecialPower(power) {
+    const st = GAME_STATE.level2;
+    // Each agent is issued exactly one ability, so the other buttons are inert.
+    if (st.assignedPower && POWER_KEYS[st.assignedPower] !== power) {
+        AUDIO.sfxError();
+        showAlert('error', 'POWER NOT ISSUED',
+            `Your assigned ability is ${POWER_LABELS[st.assignedPower]}. You cannot use the others.`);
+        return;
+    }
+
     AUDIO.sfxScifi();
     GAME_STATE.level2.activePower = power;
     const badge = document.getElementById('power-name-text');
@@ -927,7 +1317,7 @@ function runLevel2Loop(canvas, ctx) {
         });
 
         // 3. Velocity Crystals
-        st.crystalsList.forEach((c) => {
+        st.crystalsList.forEach((c, ci) => {
             if (!c.collected) {
                 ctx.fillStyle = '#00d4ff';
                 ctx.shadowBlur = 16; ctx.shadowColor = '#00d4ff';
@@ -941,14 +1331,11 @@ function runLevel2Loop(canvas, ctx) {
 
                 const dist = Math.hypot(st.playerX - c.x, st.playerY - c.y);
                 if (dist < 26) {
+                    // Marked locally at once so the next frame cannot re-fire it;
+                    // the authoritative count comes back from the server.
                     c.collected = true;
-                    st.crystals++;
                     AUDIO.sfxSuccess();
-                    document.getElementById('lvl2-crystals').textContent = `💎 ${st.crystals} / 3`;
-
-                    if (st.crystals >= 3) {
-                        document.getElementById('lvl2-complete-modal').style.display = 'flex';
-                    }
+                    reportCrystal(ci);
                 }
             }
         });
@@ -1005,9 +1392,92 @@ function runLevel2Loop(canvas, ctx) {
         ctx.fillStyle = '#39ff14';
         ctx.fillText(GAME_STATE.player.name.toUpperCase(), st.playerX - 20, st.playerY - 22);
 
+        // 6. Hazard collisions — brief invulnerability after a hit so one contact
+        //    costs one life rather than one per frame.
+        if (st.invulnerable > 0) {
+            st.invulnerable--;
+        } else if (!st.gameOver) {
+            const hazard = st.hazardsList.find((h) => hazardHitsPlayer(st, h));
+            if (hazard) {
+                st.invulnerable = 100;
+                AUDIO.sfxError();
+                reportHazard(hazard.type);
+            }
+        }
+
         st.animFrame = requestAnimationFrame(frame);
     }
     frame();
+}
+
+/** Powers let a player pass hazards they would otherwise be caught by. */
+function hazardHitsPlayer(st, h) {
+    if (st.isFlying && (h.type === 'oil' || h.type === 'virus')) return false;
+    if (st.isJumping && h.type === 'oil') return false;
+
+    const r = 14;
+    if (h.type === 'virus') return Math.hypot(st.playerX - h.x, st.playerY - h.y) < h.radius + r;
+    if (h.type === 'laser') {
+        return Math.abs(st.playerX - h.x) < 6 + r && st.playerY > h.y && st.playerY < h.y + h.h;
+    }
+    return (
+        st.playerX + r > h.x && st.playerX - r < h.x + h.w &&
+        st.playerY + r > h.y && st.playerY - r < h.y + h.h
+    );
+}
+
+function renderLives(lives) {
+    const el = document.getElementById('lvl2-lives');
+    if (el) el.textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
+}
+
+async function reportCrystal(index) {
+    try {
+        const res = await API.post('/api/level2/crystal', { crystalIndex: index });
+        const st = GAME_STATE.level2;
+        st.crystals = res.crystalsCollected;
+        st.lives = res.lives;
+        const el = document.getElementById('lvl2-crystals');
+        if (el) el.textContent = `💎 ${res.crystalsCollected} / 3`;
+        if (res.completed) onLevel2Complete(res);
+    } catch (err) {
+        showAlert('error', 'SYNC FAILED',
+            err.status ? err.message : 'Lost contact with mission control.');
+    }
+}
+
+async function reportHazard(type) {
+    try {
+        const res = await API.post('/api/level2/hazard', { hazard: type });
+        const st = GAME_STATE.level2;
+        st.lives = res.lives;
+        renderLives(res.lives);
+        if (res.failed) {
+            st.gameOver = true;
+            if (st.animFrame) cancelAnimationFrame(st.animFrame);
+            showAlert('error', 'MISSION FAILED',
+                'All lives lost in the Lost Velocity City. Your run ends here, Agent.');
+        }
+    } catch (err) {
+        // A failed hazard report must not stall the game loop.
+        console.warn('hazard report failed', err);
+    }
+}
+
+function onLevel2Complete(res) {
+    const modal = document.getElementById('lvl2-complete-modal');
+    const desc = document.querySelector('#lvl2-complete-modal .c-desc');
+    if (desc) {
+        desc.innerHTML = res.qualified
+            ? `All 3 Velocity Crystals collected! You finished <strong>#${res.rank}</strong> and advance to the Final Showdown.`
+            : `All 3 crystals collected, but you finished <strong>#${res.rank}</strong> — only the top 2 advance.`;
+    }
+    const btn = document.querySelector('#lvl2-complete-modal .start-btn');
+    if (btn && !res.qualified) {
+        btn.textContent = 'MISSION OVER';
+        btn.setAttribute('onclick', 'resetGameToStart()');
+    }
+    if (modal) modal.style.display = 'flex';
 }
 
 /* ══════════════════════════════════════════════════
@@ -1021,22 +1491,31 @@ function proceedToLevel3() {
     GAME_STATE.currentLevel = 3;
 }
 
-function selectWeapon(wType) {
-    AUDIO.sfxScifi();
-    GAME_STATE.level3.selectedWeapon = wType;
-    document.getElementById('weapon-select-screen').style.display = 'none';
-    document.getElementById('boss-arena-screen').style.display = 'block';
-    document.getElementById('boss-player-name').textContent = `${GAME_STATE.player.name.toUpperCase()} [${wType.toUpperCase()}]`;
+async function selectWeapon(wType) {
+    try {
+        // The server locks the weapon in, so it cannot be swapped mid-fight.
+        const res = await API.post('/api/level3/weapon', { weapon: wType });
+        AUDIO.sfxScifi();
+        GAME_STATE.level3.selectedWeapon = res.weapon;
 
-    startBossBattle();
+        document.getElementById('weapon-select-screen').style.display = 'none';
+        document.getElementById('boss-arena-screen').style.display = 'block';
+        document.getElementById('boss-player-name').textContent =
+            `${GAME_STATE.player.name.toUpperCase()} [${res.weapon.toUpperCase()}]`;
+
+        startBossBattle();
+    } catch (err) {
+        AUDIO.sfxError();
+        showAlert('error', 'ARMOURY LOCKED',
+            err.status ? err.message : 'Cannot reach mission control. Check the backend is running.');
+    }
 }
 
 function startBossBattle() {
     const canvas = document.getElementById('boss-canvas');
     const ctx = canvas.getContext('2d');
     const st = GAME_STATE.level3;
-    st.bossHp = 100;
-    st.playerHp = 100;
+    // HP is whatever the server says it is — never reset locally.
 
     function frame() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1075,41 +1554,60 @@ function startBossBattle() {
     frame();
 }
 
-function playerAttackBoss() {
-    AUDIO.sfxClick();
+/**
+ * All combat resolves on the server. `seq` increments per action so a retry or
+ * a double click cannot land the same blow twice.
+ */
+async function sendBossAction(action) {
     const st = GAME_STATE.level3;
-    let dmg = 15;
-    if (st.selectedWeapon === 'sword') dmg = 20;
-    if (st.selectedWeapon === 'blaster') dmg = 18;
+    if (st.finished || st.pending) return;
+    st.pending = true;
 
-    st.bossHp = Math.max(0, st.bossHp - dmg);
-    AUDIO.sfxSuccess();
+    try {
+        const res = await API.post('/api/level3/action', { action, seq: st.seq++ });
+        st.bossHp = res.bossHp;
+        st.playerHp = res.playerHp;
 
-    if (st.bossHp <= 0) {
-        cancelAnimationFrame(st.animFrame);
-        triggerVictory();
+        if (res.duplicate) return;
+        if (action === 'dodge') AUDIO.sfxScifi(); else AUDIO.sfxSuccess();
+
+        if (res.finished) {
+            st.finished = true;
+            if (st.animFrame) cancelAnimationFrame(st.animFrame);
+            if (res.won) triggerVictory(res);
+            else {
+                AUDIO.sfxError();
+                showAlert('error', 'DEFEATED',
+                    'The Corrupted Overlord has overwhelmed you. The city remains in darkness.');
+            }
+        }
+    } catch (err) {
+        if (err.code !== 'ACTION_TOO_FAST') {
+            AUDIO.sfxError();
+            showAlert('error', 'ACTION FAILED',
+                err.status ? err.message : 'Cannot reach mission control.');
+        }
+    } finally {
+        st.pending = false;
     }
 }
 
-function playerDodgeBoss() {
-    AUDIO.sfxScifi();
-    GAME_STATE.level3.playerHp = Math.min(100, GAME_STATE.level3.playerHp + 5);
-}
-
-function playerUltimateBoss() {
-    AUDIO.sfxSuccess();
-    const st = GAME_STATE.level3;
-    st.bossHp = Math.max(0, st.bossHp - 35);
-    if (st.bossHp <= 0) {
-        cancelAnimationFrame(st.animFrame);
-        triggerVictory();
-    }
-}
+function playerAttackBoss() { AUDIO.sfxClick(); sendBossAction('attack'); }
+function playerDodgeBoss() { sendBossAction('dodge'); }
+function playerUltimateBoss() { sendBossAction('ultimate'); }
 
 /* ══════════════════════════════════════════════════
    VICTORY & RESTART
 ══════════════════════════════════════════════════ */
-function triggerVictory() {
+function formatDuration(ms) {
+    if (!ms && ms !== 0) return '--:--.-';
+    const total = ms / 1000;
+    const m = String(Math.floor(total / 60)).padStart(2, '0');
+    const s = String(Math.floor(total % 60)).padStart(2, '0');
+    return `${m}:${s}.${Math.floor((total * 10) % 10)}`;
+}
+
+async function triggerVictory(res) {
     const stage3 = document.getElementById('game-stage-3');
     if (stage3) stage3.style.display = 'none';
     const vStage = document.getElementById('game-stage-victory');
@@ -1119,9 +1617,24 @@ function triggerVictory() {
     if (vName) vName.textContent = GAME_STATE.player.name.toUpperCase();
     const vDept = document.getElementById('v-agent-dept');
     if (vDept) vDept.textContent = `${GAME_STATE.player.dept.toUpperCase()} | ROLL: ${GAME_STATE.player.roll}`;
-    const vTime = document.getElementById('v-total-time');
-    if (vTime) vTime.textContent = '03:42.5';
     AUDIO.sfxSuccess();
+
+    // Real elapsed time and title come from the server, not a placeholder.
+    try {
+        const { session } = await API.get('/api/session');
+        const total =
+            (session.level1?.durationMs || 0) +
+            (session.level2?.durationMs || 0) +
+            (session.level3?.durationMs || 0);
+        const vTime = document.getElementById('v-total-time');
+        if (vTime) vTime.textContent = formatDuration(total);
+
+        const rankEl = document.querySelector('#game-stage-victory .vs-row:last-child strong');
+        if (rankEl) {
+            const champion = res?.champion ?? session.level3?.champion;
+            rankEl.textContent = champion ? '#1 (CHAMPION)' : 'FINALIST — OVERLORD DEFEATED';
+        }
+    } catch (e) { /* the victory screen still stands without the summary */ }
 }
 
 function startLevel1() {
@@ -1159,7 +1672,8 @@ function startLevel1() {
         if (timerEl) timerEl.textContent = `${m}:${s}.${ms}`;
     }, 100);
 
-    initWebcamScanner();
+    loadClueBoard();
+    initGestureRecognition();
 }
 
 function proceedToLevel2() {
@@ -1191,6 +1705,7 @@ function proceedToLevel2() {
         window.addEventListener('keydown', handleLvl2Keydown);
         window.addEventListener('keyup', handleLvl2Keyup);
         if (GAME_STATE.level2.animFrame) cancelAnimationFrame(GAME_STATE.level2.animFrame);
+        loadLevel2State();
         runLevel2Loop(canvas, ctx);
     }
 }
@@ -1222,7 +1737,14 @@ function proceedToLevel3() {
     GAME_STATE.currentLevel = 3;
 }
 
+/** The dashboard is served by the backend, so it lives at the API origin. */
+function openDashboard() {
+    window.open(`${API_BASE}/dashboard`, '_blank');
+}
+
 function resetGameToStart() {
+    // Drop the session token so "play again" starts a genuinely fresh run.
+    API.token = null;
     window.location.href = './index.html';
 }
 

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+dev.db
+dev.db-journal
+dev.db-wal
+dev.db-shm
+prisma/race-test.db*
+
+/src/generated/prisma
