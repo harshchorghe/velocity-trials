@@ -6,8 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Velocity Trials — Level 2: The Lost Velocity City</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
+  <!-- Three.js and Anime.js for 3D graphics and master animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" crossorigin="anonymous"></script>
 </head>
 
 <body id="page-level2">
@@ -27,7 +32,10 @@
   <!-- ALERT MODAL -->
   <div class="modal-overlay" id="modal-alert">
     <div class="modal-panel" style="max-width:360px;text-align:center">
-      <div class="mc tl"></div><div class="mc tr"></div><div class="mc bl"></div><div class="mc br"></div>
+      <div class="mc tl"></div>
+      <div class="mc tr"></div>
+      <div class="mc bl"></div>
+      <div class="mc br"></div>
       <div class="alert-icon-wrap" id="alert-icon">!</div>
       <div class="alert-title-el" id="alert-title">ALERT</div>
       <div class="alert-msg-el" id="alert-msg"></div>
@@ -43,25 +51,32 @@
       <div class="stage-badge">LEVEL 2</div>
       <h2 class="stage-title">THE LOST VELOCITY CITY</h2>
       <div class="hud-stats">
-        <div class="hud-item"><span class="h-lbl">AGENT:</span> <span id="lvl2-agent-name" class="h-val">UNKNOWN</span></div>
-        <div class="hud-item"><span class="h-lbl">LIVES:</span> <span id="lvl2-lives" class="h-val crit">❤️❤️❤️</span></div>
-        <div class="hud-item"><span class="h-lbl">CRYSTALS:</span> <span id="lvl2-crystals" class="h-val gold">💎 0 / 3</span></div>
-        <div class="hud-item"><span class="h-lbl">CITY TIMER:</span> <span id="lvl2-timer" class="timer-val">00:00</span></div>
+        <div class="hud-item"><span class="h-lbl">AGENT:</span> <span id="lvl2-agent-name" class="h-val">UNKNOWN</span>
+        </div>
+        <div class="hud-item"><span class="h-lbl">LIVES:</span> <span id="lvl2-lives" class="h-val crit">❤️❤️❤️</span>
+        </div>
+        <div class="hud-item"><span class="h-lbl">CRYSTALS:</span> <span id="lvl2-crystals" class="h-val gold">💎 0 /
+            3</span></div>
+        <div class="hud-item"><span class="h-lbl">CITY TIMER:</span> <span id="lvl2-timer"
+            class="timer-val">00:00</span></div>
       </div>
     </div>
 
     <!-- POWER & MULTIPLAYER BADGES -->
     <div class="lvl2-sub-bar">
       <div class="power-badge" id="active-power-badge">
-        <span class="p-icon">⚡</span> ACTIVE POWER: <strong id="power-name-text">SPRINT (HOLD SHIFT / GESTURE: FIST)</strong>
+        <span class="p-icon">⚡</span> ACTIVE POWER: <strong id="power-name-text">SPRINT (HOLD SHIFT / GESTURE:
+          FIST)</strong>
       </div>
       <div class="multiplayer-badge">
-        <span class="m-dot"></span> MULTIPLAYER WORLD: <span id="co-players-count">3 OTHER AGENTS ACTIVE</span> (NEXUS, ARIA-7, PHANTOM)
+        <span class="m-dot"></span> MULTIPLAYER WORLD: <span id="co-players-count">3 OTHER AGENTS ACTIVE</span> (NEXUS,
+        ARIA-7, PHANTOM)
       </div>
     </div>
 
     <!-- CANVAS GAME WORLD -->
-    <div class="city-canvas-wrapper">
+    <div class="city-canvas-wrapper" style="position:relative;">
+      <div id="map3d-container-l2" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:-1;"></div>
       <canvas id="city-canvas" width="1000" height="580"></canvas>
 
       <!-- GESTURE & TOUCH POWER TRIGGER OVERLAYS -->
@@ -77,13 +92,24 @@
       <div class="complete-box">
         <div class="c-icon">💎</div>
         <div class="c-title">LEVEL 2 COMPLETED!</div>
-        <div class="c-desc">All 3 Velocity Crystals collected! You are ranked in the <strong>TOP 2 PLAYERS</strong>!</div>
+        <div class="c-desc">All 3 Velocity Crystals collected! You are ranked in the <strong>TOP 2 PLAYERS</strong>!
+        </div>
         <button class="start-btn" onclick="proceedToLevel3()">ADVANCE TO LEVEL 3 — THE FINAL SHOWDOWN ›</button>
       </div>
     </div>
   </div>
 
-  <script src="./script.js"></script>
+  <!-- GREETING VIDEO OVERLAY -->
+  <div id="greet-video-overlay" style="display:none;" class="greet-overlay">
+    <video id="greet-video" autoplay muted playsinline preload="auto">
+      <source src="assets/videos/background.mp4s" type="video/mp4">
+    </video>
+    <button id="greet-skip" class="start-btn greet-skip-btn">PROCEED TO NEXT MISSION ›</button>
+  </div>
+
+  <script src="./map3d.js?v=3"></script>
+  <script src="./script.js?v=3"></script>
+  <script src="./vfx.js"></script>
 </body>
 
 </html>

@@ -29,8 +29,8 @@ export const GAME_CONFIG = {
   PLAYER_MAX_HP: 100,
 
   /** How many players clear Level 1 into Level 2, and Level 2 into the final. */
-  LEVEL1_QUALIFY_LIMIT: 10,
-  LEVEL2_QUALIFY_LIMIT: 2,
+  LEVEL1_QUALIFY_LIMIT: 99999,
+  LEVEL2_QUALIFY_LIMIT: 99999,
 
   /** Server-side floor between boss actions, to bound damage-per-second. */
   BOSS_ACTION_COOLDOWN_MS: 350,

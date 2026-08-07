@@ -11,7 +11,6 @@ const PROGRESS_INCLUDE = { player: true, level1: true, level2: true, level3: tru
 export interface RegistrationInput {
   name: string;
   phone: string;
-  rollNumber: string;
   department: string;
   year: string;
 }
@@ -33,31 +32,25 @@ export function validateRegistration(body: unknown): RegistrationInput {
   return {
     name: requireText(b.name, 'name', 2),
     phone,
-    rollNumber: requireText(b.rollNumber, 'rollNumber').toUpperCase(),
     department: requireText(b.department, 'department'),
     year: requireText(b.year, 'year'),
   };
 }
 
 /**
- * Registration is keyed on roll number so a player who reloads the portal keeps
- * the same identity instead of creating a duplicate agent.
+ * Registration is strictly limited to new phone numbers.
+ * Duplicate phone numbers will throw a unique constraint violation.
  */
 export async function registerPlayer(input: RegistrationInput) {
   try {
-    return await prisma.player.upsert({
-      where: { rollNumber: input.rollNumber },
-      update: {
-        name: input.name,
-        phone: input.phone,
-        department: input.department,
-        year: input.year,
+    return await prisma.player.create({
+      data: {
+        ...input,
+        rollNumber: `AG-${Math.floor(1000 + Math.random() * 9000)}`,
       },
-      create: input,
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
-      // Roll number is free but the phone belongs to a different agent.
       throw conflict('PHONE_TAKEN', 'That phone number is already registered to another agent');
     }
     throw err;

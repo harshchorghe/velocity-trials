@@ -6,11 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Velocity Trials — Level 1: Physical Quest</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <!-- MediaPipe Hands & Camera Utils for Gesture Recognition -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <!-- Three.js and Anime.js for 3D graphics and master animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" crossorigin="anonymous"></script>
 </head>
 
 <body id="page-level1">
@@ -30,7 +35,10 @@
   <!-- ALERT MODAL -->
   <div class="modal-overlay" id="modal-alert">
     <div class="modal-panel" style="max-width:360px;text-align:center">
-      <div class="mc tl"></div><div class="mc tr"></div><div class="mc bl"></div><div class="mc br"></div>
+      <div class="mc tl"></div>
+      <div class="mc tr"></div>
+      <div class="mc bl"></div>
+      <div class="mc br"></div>
       <div class="alert-icon-wrap" id="alert-icon">!</div>
       <div class="alert-title-el" id="alert-title">ALERT</div>
       <div class="alert-msg-el" id="alert-msg"></div>
@@ -58,17 +66,18 @@
         <div class="clue-list">
           <div class="clue-card active" id="clue-card-1">
             <div class="clue-num">CLUE 01</div>
-            <div class="clue-text">Locate the digital clock tower near the Central Quad. Find the 4-digit relay box code.</div>
+            <div class="clue-text">near the table.</div>
             <div class="clue-input-row">
               <input type="text" id="clue1-input" placeholder="Enter Clue 1 Code..." maxlength="6">
-              <button class="clue-btn" onclick="verifyClue(1)">VERIFY</button>
+              <button class="clue-btn" id="clue1-btn" onclick="verifyClue(1)">VERIFY</button>
             </div>
             <div class="clue-status" id="clue1-status">STATUS: PENDING</div>
           </div>
 
           <div class="clue-card locked" id="clue-card-2">
             <div class="clue-num">CLUE 02</div>
-            <div class="clue-text">Proceed to the Robotics Lab door. Decode the binary matrix posted on the scanner.</div>
+            <div class="clue-text">Proceed to the Robotics Lab door. Decode the binary matrix posted on the scanner.
+            </div>
             <div class="clue-input-row">
               <input type="text" id="clue2-input" placeholder="Enter Clue 2 Code..." maxlength="6" disabled>
               <button class="clue-btn" id="clue2-btn" onclick="verifyClue(2)" disabled>VERIFY</button>
@@ -78,7 +87,8 @@
 
           <div class="clue-card locked" id="clue-card-3">
             <div class="clue-num">CLUE 03 — FINAL CODE</div>
-            <div class="clue-text">Locate the Velocity Crystal Shrine at the rooftop garden. Note down the Secret Master Code.</div>
+            <div class="clue-text">Locate the Velocity Crystal Shrine at the rooftop garden. Note down the Secret Master
+              Code.</div>
             <div class="clue-input-row">
               <input type="text" id="clue3-input" placeholder="Enter Clue 3 Code..." maxlength="6" disabled>
               <button class="clue-btn" id="clue3-btn" onclick="verifyClue(3)" disabled>VERIFY</button>
@@ -86,12 +96,33 @@
             <div class="clue-status" id="clue3-status">STATUS: LOCKED (SOLVE CLUE 2 FIRST)</div>
           </div>
         </div>
+
+        <!-- GESTURE CODE INPUT SLOTS -->
+        <div class="code-display-wrap">
+          <div class="code-label">SECRET GESTURE CODE ENTERED:</div>
+          <div class="code-slots">
+            <span class="slot" id="slot-0">_</span>
+            <span class="slot" id="slot-1">_</span>
+            <span class="slot" id="slot-2">_</span>
+            <span class="slot" id="slot-3">_</span>
+          </div>
+          <div class="code-actions">
+            <button class="action-btn clear" onclick="clearGestureCode()">CLEAR CODE</button>
+            <button class="action-btn submit" id="submit-gesture-btn" onclick="submitFinalGestureCode()">SUBMIT GESTURE
+              CODE</button>
+          </div>
+        </div>
       </div>
 
       <!-- RIGHT: GESTURE CODE TERMINAL -->
       <div class="gesture-panel">
-        <div class="panel-hd">◈ GESTURE INPUT TERMINAL</div>
-        <div class="gesture-sub">Use Hand Gestures (WebCam or Gesture Pad below) to enter the Final Secret Code! Digits 6–9 need
+        <div class="panel-hd">
+          <img src="./assets/images/sci_fi_velocity_crystal.png" alt="Crystal"
+            style="width:24px; height:24px; vertical-align:middle; margin-right:8px; border-radius:4px;">
+          ◈ GESTURE INPUT TERMINAL
+        </div>
+        <div class="gesture-sub">Use Hand Gestures (WebCam or Gesture Pad below) to enter the Final Secret Code! Digits
+          6–9 need
           both hands — e.g. 6 = open palm + one finger.</div>
 
         <!-- CAMERA / GESTURE PREVIEW -->
@@ -119,32 +150,33 @@
           </div>
         </div>
 
-        <!-- GESTURE CODE INPUT SLOTS -->
-        <div class="code-display-wrap">
-          <div class="code-label">SECRET GESTURE CODE ENTERED:</div>
-          <div class="code-slots">
-            <span class="slot" id="slot-0">_</span>
-            <span class="slot" id="slot-1">_</span>
-            <span class="slot" id="slot-2">_</span>
-            <span class="slot" id="slot-3">_</span>
-          </div>
-          <div class="code-actions">
-            <button class="action-btn clear" onclick="clearGestureCode()">CLEAR CODE</button>
-            <button class="action-btn submit" id="submit-gesture-btn" onclick="submitFinalGestureCode()">SUBMIT GESTURE CODE</button>
-          </div>
-        </div>
 
         <!-- QUALIFICATION BANNER -->
-        <div class="qualify-banner" id="lvl1-qualify-banner" style="display:none">
-          <div class="q-title">🎉 LEVEL 1 QUALIFIED!</div>
-          <div class="q-desc">Top performer ranking confirmed. You have unlocked access to Level 2 — The Lost Velocity City!</div>
-          <button class="start-btn" onclick="proceedToLevel2()">ENTER THE LOST VELOCITY CITY ›</button>
+        <div class="level-complete-overlay" id="lvl1-qualify-banner" style="display:none">
+          <div class="complete-box">
+            <div class="c-icon">🎉</div>
+            <div class="c-title">LEVEL 1 QUALIFIED!</div>
+            <div class="c-desc">Top performer ranking confirmed. You have unlocked access to Level 2 — The Lost Velocity
+              City!</div>
+            <button class="start-btn" onclick="proceedToLevel2()">ENTER THE LOST VELOCITY CITY ›</button>
+          </div>
         </div>
       </div>
     </div>
+
+
   </div>
 
-  <script src="./script.js"></script>
+  <!-- GREETING VIDEO OVERLAY -->
+  <div id="greet-video-overlay" style="display:none;" class="greet-overlay">
+    <video id="greet-video" autoplay muted playsinline preload="auto">
+      <source src="assets/videos/background.mp4" type="video/mp4">
+    </video>
+    <button id="greet-skip" class="start-btn greet-skip-btn">PROCEED TO NEXT MISSION ›</button>
+  </div>
+
+  <script src="./script.js?v=3"></script>
+  <script src="./vfx.js"></script>
 </body>
 
 </html>

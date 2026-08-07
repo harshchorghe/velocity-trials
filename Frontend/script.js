@@ -8,6 +8,47 @@ const API_BASE = (location.port === '4000' || location.protocol === 'file:')
     ? (location.protocol === 'file:' ? 'http://localhost:4000' : '')
     : `${location.protocol}//${location.hostname}:4000`;
 
+/* ══════════════════════════
+   VFX: CUSTOM CURSOR & LOCKOUT
+══════════════════════════ */
+function initVFX() {
+    // Custom Cursor
+    const dot = document.createElement('div');
+    dot.id = 'vfx-cursor-dot';
+    const ring = document.createElement('div');
+    ring.id = 'vfx-cursor-ring';
+    document.body.appendChild(dot);
+    document.body.appendChild(ring);
+
+    window.addEventListener('mousemove', (e) => {
+        dot.style.left = `${e.clientX}px`;
+        dot.style.top = `${e.clientY}px`;
+        ring.style.left = `${e.clientX}px`;
+        ring.style.top = `${e.clientY}px`;
+    });
+
+    document.addEventListener('mousedown', () => ring.classList.add('hover-btn'));
+    document.addEventListener('mouseup', () => ring.classList.remove('hover-btn'));
+
+    const addHover = () => { ring.classList.add('hover'); dot.classList.add('hover'); };
+    const removeHover = () => { ring.classList.remove('hover'); dot.classList.remove('hover'); };
+
+    // Attach to initial elements and body mouseover for dynamic elements
+    document.body.addEventListener('mouseover', (e) => {
+        if (e.target.closest('button, a, input, .interactable')) addHover();
+    });
+    document.body.addEventListener('mouseout', (e) => {
+        if (e.target.closest('button, a, input, .interactable')) removeHover();
+    });
+
+    // Mobile Lockout
+    const lockout = document.createElement('div');
+    lockout.id = 'vfx-mobile-lockout';
+    lockout.innerHTML = `<div>TechChase 2K26 IS OPTIMIZED FOR DESKTOP.<br><br>PLEASE SWITCH TO A LAPTOP OR DESKTOP TO CONTINUE.</div>`;
+    document.body.appendChild(lockout);
+}
+document.addEventListener('DOMContentLoaded', initVFX);
+
 const API = {
     get token() { return localStorage.getItem('tc_token'); },
     set token(v) {
@@ -179,17 +220,24 @@ document.addEventListener('click', () => AUDIO.start(), { once: true });
 document.addEventListener('keydown', () => AUDIO.start(), { once: true });
 document.addEventListener('touchstart', () => AUDIO.start(), { once: true });
 
-/* ══ CURSOR ══ */
-(function () {
-    const g = document.getElementById('cursor-glow');
-    document.addEventListener('mousemove', e => { g.style.left = e.clientX + 'px'; g.style.top = e.clientY + 'px' });
-    document.addEventListener('mouseenter', () => g.style.opacity = '1');
-    document.addEventListener('mouseleave', () => g.style.opacity = '0');
-    document.querySelectorAll('button,input,select,label,[onclick]').forEach(el => {
-        el.addEventListener('mouseenter', () => { document.body.classList.add('hovering'); AUDIO.sfxHover(); });
-        el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
+/* ══ UTILITIES ══ */
+function animateNumber(element, finalValue, duration = 800) {
+    if (!element || !window.anime) {
+        if (element) element.textContent = finalValue;
+        return;
+    }
+    const obj = { val: parseFloat(element.textContent) || 0 };
+    anime({
+        targets: obj,
+        val: finalValue,
+        round: 1,
+        easing: 'easeOutExpo',
+        duration: duration,
+        update: function () {
+            element.textContent = obj.val;
+        }
     });
-})();
+}
 
 /* ══ MODAL HELPERS ══ */
 function openModal(id) { document.getElementById(id).classList.add('open') }
@@ -284,42 +332,12 @@ function startBoot() {
 
 /* ══ NAV BUTTONS ══ (index.html only) */
 document.getElementById('btn-briefing')?.addEventListener('click', () => { AUDIO.sfxScifi(); openModal('modal-mission'); });
-document.getElementById('btn-leaderboard')?.addEventListener('click', () => {
-    AUDIO.sfxScifi();
-    openModal('modal-leaderboard');
-    loadLeaderboard();
-});
 document.getElementById('btn-exit')?.addEventListener('click', () => { AUDIO.sfxError(); exitSystem(); });
 document.getElementById('rules-link')?.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openModal('modal-mission') });
 
 /* ══ LEADERBOARD (live from the backend) ══ */
 function escapeHtml(str) {
     return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-async function loadLeaderboard() {
-    const body = document.querySelector('#modal-leaderboard .lb-table tbody');
-    if (!body) return;
-    body.innerHTML = '<tr><td colspan="5">LOADING LIVE STANDINGS…</td></tr>';
-
-    try {
-        const { rows } = await API.get('/api/leaderboard?limit=10');
-        if (!rows.length) {
-            body.innerHTML = '<tr><td colspan="5">NO AGENTS HAVE REGISTERED YET</td></tr>';
-            return;
-        }
-        const rankClass = (i) => ['gold', 'silver', 'bronze'][i] || 'norm';
-        body.innerHTML = rows.map((r, i) => `
-            <tr>
-              <td><span class="lb-rank ${rankClass(i)}">${String(r.rank).padStart(2, '0')}</span></td>
-              <td>${escapeHtml(r.agent)}</td>
-              <td>${escapeHtml(r.department)}</td>
-              <td>${r.zonesCleared}/${r.totalZones}</td>
-              <td><span class="lb-score">${r.score}</span></td>
-            </tr>`).join('');
-    } catch (err) {
-        body.innerHTML = `<tr><td colspan="5">LEADERBOARD OFFLINE — ${escapeHtml(err.message)}</td></tr>`;
-    }
 }
 
 /* ══ RIPPLE ══ */
@@ -333,34 +351,20 @@ document.querySelectorAll('.start-btn,.nav-btn,.modal-close,.intro-skip').forEac
     });
 });
 
-/* ══ ECHO AI TYPEWRITER ══ */
+/* ══ TYPED.JS TERMINAL SEQUENCE ══ */
 (function () {
-    const msgs = [
-        "Scanning global threat matrix…",
-        "You are one of the last authorized agents..",
-        "Authenticate. The mission clock is running..",
-        "REBOOT HUMANITY — it is your only directive..",
-        "Nature's life support is at 3%. Move now..",
-        "Every second of delay costs humanity dearly...",
-        "Every choice defines the future...",
-        "Are you ready, Agent...",
-    ];
-    const el = document.getElementById('echo-text');
-    if (!el) return;
-    let mi = 0, ci = 0, typing = true;
-    function tick() {
-        const msg = msgs[mi];
-        if (typing) {
-            ci++; el.innerHTML = msg.slice(0, ci) + '<span class="echo-cursor"></span>';
-            if (ci >= msg.length) { typing = false; setTimeout(tick, 2600); return; }
-            setTimeout(tick, 38 + Math.random() * 22);
-        } else {
-            ci--; el.innerHTML = msg.slice(0, ci) + '<span class="echo-cursor"></span>';
-            if (ci <= 0) { typing = true; mi = (mi + 1) % msgs.length; setTimeout(tick, 400); return; }
-            setTimeout(tick, 14);
+    if (!document.getElementById('typed-terminal') || typeof Typed === 'undefined') return;
+    new Typed('#typed-terminal', {
+        strings: [
+            "> SYSTEM INITIALIZING...<br>> ACCESS TIER: RESTRICTED...<br>> AWAITING AGENT INPUT..."
+        ],
+        typeSpeed: 30,
+        showCursor: true,
+        cursorChar: '█',
+        onStringTyped: function (arrayPos, self) {
+            // Optional: add a sound effect hook here if needed
         }
-    }
-    setTimeout(tick, 6500);
+    });
 })();
 
 /* ══ COUNTDOWN TIMER ══ */
@@ -396,7 +400,6 @@ function updateProgress() {
     const v = id => document.getElementById(id).value.trim();
     const checks = [
         v('playerName').length >= 2,
-        v('rollNumber').length > 0,
         v('department') !== '',
         v('year') !== '',
         /^[6-9]\d{9}$/.test(v('phone')),
@@ -425,7 +428,7 @@ document.getElementById('phone')?.addEventListener('input', () => {
     if (clean !== inp.value) inp.value = clean;
 });
 
-['playerName', 'rollNumber', 'phone'].forEach(id => {
+['playerName', 'phone'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => { updateProgress(); AUDIO.sfxType(); });
 });
 ['department', 'year'].forEach(id => {
@@ -445,13 +448,12 @@ function validateField(id) {
     const v = document.getElementById(id).value.trim();
     switch (id) {
         case 'playerName': return setField('playerName', 'err-name', v.length >= 2);
-        case 'rollNumber': return setField('rollNumber', 'err-roll', v.length > 0);
         case 'department': return setField('department', 'err-dept', v !== '');
         case 'year': return setField('year', 'err-year', v !== '');
         case 'phone': return setField('phone', 'err-phone', /^[6-9]\d{9}$/.test(v));
     }
 }
-['playerName', 'rollNumber', 'phone'].forEach(id => {
+['playerName', 'phone'].forEach(id => {
     document.getElementById(id)?.addEventListener('blur', () => validateField(id));
     document.getElementById(id)?.addEventListener('input', () => {
         if (document.getElementById(id).classList.contains('err')) validateField(id);
@@ -464,7 +466,7 @@ function validateField(id) {
 document.getElementById('phone')?.addEventListener('keypress', e => { if (!/[0-9]/.test(e.key)) e.preventDefault() });
 
 function validateAll() {
-    const r = ['playerName', 'rollNumber', 'department', 'year', 'phone'].map(id => validateField(id));
+    const r = ['playerName', 'department', 'year', 'phone'].map(id => validateField(id));
     const chkWrap = document.getElementById('chk-wrap'), agreed = document.getElementById('agree').checked;
     chkWrap.classList.toggle('err', !agreed);
     if (!agreed) { chkWrap.classList.add('shake'); setTimeout(() => chkWrap.classList.remove('shake'), 320); }
@@ -483,19 +485,16 @@ function runAuthSequence(name, roll, dept, yr) {
 
     openModal('modal-auth');
     const term = document.getElementById('auth-terminal'), action = document.getElementById('auth-action');
-    term.innerHTML = ''; 
+    term.innerHTML = '';
     action.style.display = 'block'; // Make proceed button visible right away
 
     const lines = [
         { t: '> INITIALIZING ECHO AUTHENTICATION PROTOCOL v4.2…', cls: '', d: 0 },
         { t: '> CONNECTING TO MISSION CONTROL SERVER…', cls: '', d: 300 },
-        { t: '> SECURE CHANNEL ESTABLISHED — 256-BIT QUANTUM AES', cls: 'ok', d: 600 },
         { t: `> SCANNING AGENT: "${name.toUpperCase()}"`, cls: '', d: 900 },
-        { t: `> UNIT ID: [${roll.toUpperCase()}]`, cls: 'ok', d: 1200 },
+        { t: `> AGENT ID ASSIGNED: [${roll.toUpperCase()}]`, cls: 'ok', d: 1200 },
         { t: `> DEPARTMENT VERIFIED: ${dept.toUpperCase()}`, cls: 'ok', d: 1500 },
         { t: `> YEAR CLEARANCE: ${yr.toUpperCase()}`, cls: '', d: 1800 },
-        { t: '> CROSS-REFERENCING HUMANITY AGENT DATABASE…', cls: '', d: 2100 },
-        { t: '> NO THREAT FLAGS DETECTED — AGENT CLEARED', cls: 'ok', d: 2400 },
         { t: '> ASSIGNING MISSION COORDINATES & ZONE ACCESS…', cls: '', d: 2700 },
         { t: '> ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 100%', cls: '', d: 3000 },
         { t: '', cls: 'blank', d: 3200 },
@@ -523,7 +522,6 @@ async function handleStartMission(e) {
     AUDIO.sfxSuccess();
 
     const n = document.getElementById('playerName').value.trim();
-    const r = document.getElementById('rollNumber').value.trim();
     const d = document.getElementById('department').value;
     const y = document.getElementById('year').value;
     const phone = document.getElementById('phone').value.trim();
@@ -534,10 +532,11 @@ async function handleStartMission(e) {
     try {
         // Registration is the login: the returned token authorises every later call.
         const res = await API.post('/api/register', {
-            name: n, phone, rollNumber: r, department: d, year: y,
+            name: n, phone, department: d, year: y,
         });
         API.token = res.token;
-        runAuthSequence(n, r, d, y);
+        const agId = res.session?.player?.rollNumber || 'AG-UNKNOWN';
+        runAuthSequence(n, agId, d, y);
     } catch (err) {
         AUDIO.sfxError();
         showAlert(
@@ -823,13 +822,38 @@ function startLevel1() {
             GAME_STATE.player.dept = p.dept || 'CSE';
             GAME_STATE.player.roll = p.roll || '2K26';
         }
-    } catch(e) {}
+    } catch (e) { }
 
-    // Hide auth terminal main app, show Stage 1
-    document.querySelector('.app').style.display = 'none';
-    document.getElementById('game-stage-1').style.display = 'flex';
     GAME_STATE.currentLevel = 1;
     GAME_STATE.startTime = Date.now();
+
+    const appEl = document.querySelector('.app');
+    const l1El = document.getElementById('game-stage-1');
+
+    if (window.gsap) {
+        gsap.to(appEl, {
+            x: "random(-4, 4)",
+            y: "random(-2, 2)",
+            opacity: 0.6,
+            duration: 0.02,
+            repeat: 10,
+            yoyo: true,
+            onComplete: () => {
+                gsap.to(appEl, {
+                    opacity: 0,
+                    duration: 0.1,
+                    onComplete: () => {
+                        appEl.style.display = 'none';
+                        l1El.style.display = 'flex';
+                        gsap.fromTo(l1El, { opacity: 0, scale: 0.98 }, { opacity: 1, scale: 1, duration: 0.4 });
+                    }
+                });
+            }
+        });
+    } else {
+        appEl.style.display = 'none';
+        l1El.style.display = 'flex';
+    }
 
     // Start timer
     if (GAME_STATE.level1.interval) clearInterval(GAME_STATE.level1.interval);
@@ -861,19 +885,28 @@ function applyClueProgress(solvedCount) {
             GAME_STATE.level1.clues[n] = true;
             card.classList.add('solved');
             input.disabled = true;
-            if (btn) btn.disabled = true;
+            if (btn) {
+                btn.disabled = true;
+                btn.style.display = 'none';
+            }
             status.textContent = 'STATUS: SOLVED ✓';
             status.style.color = '#39ff14';
         } else if (n === solvedCount + 1) {
             card.classList.add('active');
             input.disabled = false;
-            if (btn) btn.disabled = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.style.display = '';
+            }
             status.textContent = 'STATUS: UNLOCKED — SEEK LOCATION';
             status.style.color = '#00d4ff';
         } else {
             card.classList.add('locked');
             input.disabled = true;
-            if (btn) btn.disabled = true;
+            if (btn) {
+                btn.disabled = true;
+                btn.style.display = 'none';
+            }
             status.textContent = `STATUS: LOCKED (SOLVE CLUE ${n - 1} FIRST)`;
             status.style.color = '';
         }
@@ -914,15 +947,32 @@ async function verifyClue(num) {
     try {
         // The server holds the answer — a wrong code cannot be talked past here.
         const res = await API.post('/api/level1/clue', { clueIndex: num, code: val });
+        const cardEl = document.getElementById(`clue-card-${num}`);
+
         if (res.correct) {
             AUDIO.sfxSuccess();
+            if (cardEl) {
+                cardEl.classList.add('flash-success');
+                setTimeout(() => cardEl.classList.remove('flash-success'), 600);
+            }
             applyClueProgress(res.solvedCount);
+
+            // Auto-focus next input
+            if (num < 3) {
+                const nextInput = document.getElementById(`clue${num + 1}-input`);
+                if (nextInput) setTimeout(() => nextInput.focus(), 100);
+            }
+
             if (res.allCluesSolved) {
                 showAlert('success', 'CLUES SOLVED',
                     'All 3 clues verified! Enter the Secret Code using the Hand Gesture Pad.');
             }
         } else {
             AUDIO.sfxError();
+            if (cardEl) {
+                cardEl.classList.add('flash-error');
+                setTimeout(() => cardEl.classList.remove('flash-error'), 400);
+            }
             statusEl.textContent = 'STATUS: REJECTED ✕';
             statusEl.style.color = '#ff3366';
             showAlert('error', 'INVALID CLUE CODE',
@@ -937,6 +987,11 @@ async function verifyClue(num) {
 }
 
 function inputGestureDigit(digit) {
+    if ((GAME_STATE.level1.solvedCount || 0) < 3) {
+        AUDIO.sfxError();
+        showAlert('error', 'LOCKED', 'Solve all 3 clues before entering the secret gesture code.');
+        return;
+    }
     AUDIO.sfxClick();
     if (GAME_STATE.level1.entered.length < 4) {
         GAME_STATE.level1.entered.push(digit);
@@ -999,7 +1054,7 @@ async function submitFinalGestureCode() {
 function onLevel1Complete(res) {
     const banner = document.getElementById('lvl1-qualify-banner');
     if (res.qualified) {
-        if (banner) banner.style.display = 'block';
+        if (banner) banner.style.display = 'flex';
         showAlert('success', 'LEVEL 1 QUALIFIED',
             `Rank #${res.rank} — you advance to The Lost Velocity City.`);
     } else {
@@ -1056,6 +1111,7 @@ function connectGestureSocket(handlers) {
 }
 
 function sendHands(hands) {
+    if ((GAME_STATE.level1.solvedCount || 0) < 3) return;
     if (gestureSocket && gestureSocket.readyState === WebSocket.OPEN) {
         gestureSocket.send(JSON.stringify({ type: 'landmarks', hands }));
     }
@@ -1181,6 +1237,7 @@ function proceedToLevel2() {
     window.addEventListener('keyup', handleLvl2Keyup);
 
     if (GAME_STATE.level2.animFrame) cancelAnimationFrame(GAME_STATE.level2.animFrame);
+    if (typeof initLevel2Map3D === 'function') initLevel2Map3D(canvas.width, canvas.height);
     runLevel2Loop(canvas, ctx);
 }
 
@@ -1231,13 +1288,6 @@ async function loadLevel2State() {
 
 function triggerSpecialPower(power) {
     const st = GAME_STATE.level2;
-    // Each agent is issued exactly one ability, so the other buttons are inert.
-    if (st.assignedPower && POWER_KEYS[st.assignedPower] !== power) {
-        AUDIO.sfxError();
-        showAlert('error', 'POWER NOT ISSUED',
-            `Your assigned ability is ${POWER_LABELS[st.assignedPower]}. You cannot use the others.`);
-        return;
-    }
 
     AUDIO.sfxScifi();
     GAME_STATE.level2.activePower = power;
@@ -1264,28 +1314,8 @@ function runLevel2Loop(canvas, ctx) {
     function frame() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 1. Draw City Background
-        ctx.fillStyle = '#020a14';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x < canvas.width; x += 50) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-        }
-        for (let y = 0; y < canvas.height; y += 50) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-        }
-
-        ctx.fillStyle = 'rgba(10, 40, 20, 0.6)';
-        ctx.fillRect(100, 80, 140, 100);
-        ctx.fillRect(400, 280, 200, 120);
-        ctx.fillRect(720, 360, 160, 140);
-        ctx.strokeStyle = '#39ff14';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(100, 80, 140, 100);
-        ctx.strokeRect(400, 280, 200, 120);
-        ctx.strokeRect(720, 360, 160, 140);
+        // 1. Clear Canvas for 3D Background
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // 2. Hazards
         st.hazardsList.forEach(h => {
@@ -1483,13 +1513,6 @@ function onLevel2Complete(res) {
 /* ══════════════════════════════════════════════════
    LEVEL 3: THE FINAL SHOWDOWN & BOSS FIGHT
 ══════════════════════════════════════════════════ */
-function proceedToLevel3() {
-    document.getElementById('game-stage-2').style.display = 'none';
-    document.getElementById('game-stage-3').style.display = 'flex';
-    document.getElementById('weapon-select-screen').style.display = 'block';
-    document.getElementById('boss-arena-screen').style.display = 'none';
-    GAME_STATE.currentLevel = 3;
-}
 
 async function selectWeapon(wType) {
     try {
@@ -1517,16 +1540,10 @@ function startBossBattle() {
     const st = GAME_STATE.level3;
     // HP is whatever the server says it is — never reset locally.
 
+    if (typeof initLevel3Map3D === 'function') initLevel3Map3D(canvas.width, canvas.height);
+
     function frame() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = '#05020a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.strokeStyle = 'rgba(255, 51, 102, 0.15)';
-        for (let x = 0; x < canvas.width; x += 40) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-        }
 
         ctx.fillStyle = '#00d4ff';
         ctx.shadowBlur = 15; ctx.shadowColor = '#00d4ff';
@@ -1616,7 +1633,7 @@ async function triggerVictory(res) {
     const vName = document.getElementById('v-agent-name');
     if (vName) vName.textContent = GAME_STATE.player.name.toUpperCase();
     const vDept = document.getElementById('v-agent-dept');
-    if (vDept) vDept.textContent = `${GAME_STATE.player.dept.toUpperCase()} | ROLL: ${GAME_STATE.player.roll}`;
+    if (vDept) vDept.textContent = `${GAME_STATE.player.dept.toUpperCase()} | AG_ID: ${GAME_STATE.player.roll}`;
     AUDIO.sfxSuccess();
 
     // Real elapsed time and title come from the server, not a placeholder.
@@ -1652,7 +1669,7 @@ function startLevel1() {
             GAME_STATE.player.dept = p.dept || 'CSE';
             GAME_STATE.player.roll = p.roll || '2K26';
         }
-    } catch(e) {}
+    } catch (e) { }
 
     const app = document.querySelector('.app');
     if (app) app.style.display = 'none';
@@ -1676,9 +1693,41 @@ function startLevel1() {
     initGestureRecognition();
 }
 
+function playGreetingAndProceed(videoSrc, transitionFn) {
+    const overlay = document.getElementById('greet-video-overlay');
+    const video = document.getElementById('greet-video');
+    const skipBtn = document.getElementById('greet-skip');
+
+    if (!overlay || !video || !skipBtn) {
+        transitionFn();
+        return;
+    }
+
+    overlay.style.display = 'flex';
+    video.src = videoSrc;
+
+    // Fallback cleanup
+    const finish = () => {
+        video.onended = null;
+        skipBtn.onclick = null;
+        overlay.style.display = 'none';
+        video.pause();
+        transitionFn();
+    };
+
+    video.onended = finish;
+    skipBtn.onclick = finish;
+
+    video.play().catch(() => finish());
+}
+
 function proceedToLevel2() {
     if (!document.getElementById('page-level2') && document.getElementById('game-stage-2') === null) {
-        window.location.href = './level2.html';
+        // Since greetL2.mp4 doesn't exist, use intro.mp4 or just let it try (it skips if 404)
+        // I will change it to intro.mp4 so at least a video plays, if that's what's intended.
+        playGreetingAndProceed('./assets/videos/intro.mp4', () => {
+            window.location.href = './level2.html';
+        });
         return;
     }
 
@@ -1688,7 +1737,7 @@ function proceedToLevel2() {
             const p = JSON.parse(saved);
             GAME_STATE.player.name = p.name || 'Agent';
         }
-    } catch(e) {}
+    } catch (e) { }
 
     const stage1 = document.getElementById('game-stage-1');
     if (stage1) stage1.style.display = 'none';
@@ -1712,7 +1761,9 @@ function proceedToLevel2() {
 
 function proceedToLevel3() {
     if (!document.getElementById('page-level3') && document.getElementById('game-stage-3') === null) {
-        window.location.href = './level3.html';
+        playGreetingAndProceed('./assets/videos/intro.mp4', () => {
+            window.location.href = './level3.html';
+        });
         return;
     }
 
@@ -1724,7 +1775,7 @@ function proceedToLevel3() {
             GAME_STATE.player.dept = p.dept || 'CSE';
             GAME_STATE.player.roll = p.roll || '2K26';
         }
-    } catch(e) {}
+    } catch (e) { }
 
     const stage2 = document.getElementById('game-stage-2');
     if (stage2) stage2.style.display = 'none';
@@ -1751,7 +1802,184 @@ function resetGameToStart() {
 /* ══════════════════════════════════════════════════
    AUTO PAGE INITIALIZATION ROUTER
 ══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════
+   MASTERPIECE VISUAL OVERHAUL: THREE.JS & ANIME.JS
+══════════════════════════════════════════════════ */
+function initMasterpieceVisuals() {
+    // 1. ANIME.JS Staggered Entry
+    if (typeof anime !== 'undefined') {
+        // Animate Clue Cards
+        anime({
+            targets: '.clue-card',
+            translateX: [-50, 0],
+            opacity: [0, 1],
+            delay: anime.stagger(150, { start: 500 }),
+            easing: 'easeOutElastic(1, .6)',
+            duration: 1200
+        });
+
+        // Animate Gesture Grid
+        anime({
+            targets: '.g-btn',
+            scale: [0, 1],
+            opacity: [0, 1],
+            delay: anime.stagger(50, { start: 1000 }),
+            easing: 'easeOutBack',
+            duration: 800
+        });
+    }
+
+    // 2. THREE.JS Cyberpunk Background
+    if (typeof THREE !== 'undefined') {
+        const canvas = document.getElementById('bgc');
+        if (!canvas) return;
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x020b18, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+        camera.position.y = 10;
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Cyber Grid
+        const gridHelper = new THREE.GridHelper(200, 100, 0x00d4ff, 0x00d4ff);
+        gridHelper.material.opacity = 0.15;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+
+        // Particles (Data Stream)
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particlesCount = 1500;
+        const posArray = new Float32Array(particlesCount * 3);
+        for (let i = 0; i < particlesCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 100;
+        }
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMaterial = new THREE.PointsMaterial({
+            size: 0.15,
+            color: 0x39ff14,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+        const particleMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particleMesh);
+
+        // Animate
+        let mouseX = 0;
+        let mouseY = 0;
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+
+            // Move grid
+            gridHelper.position.z = (elapsedTime * 5) % 2;
+
+            // Move particles
+            particleMesh.rotation.y = mouseX * 0.2 + elapsedTime * 0.05;
+            particleMesh.rotation.x = mouseY * 0.2;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+}
+
+// Enhance Gesture Buttons with Anime.js ripple
+const originalInputGestureDigit = typeof inputGestureDigit === 'function' ? inputGestureDigit : null;
+window.inputGestureDigit = function (digit) {
+    if (typeof anime !== 'undefined' && event && event.currentTarget) {
+        anime({
+            targets: event.currentTarget,
+            scale: [0.9, 1.1, 1],
+            boxShadow: [
+                '0 0 0 rgba(0, 212, 255, 0)',
+                '0 0 30px rgba(0, 212, 255, 0.8)',
+                '0 0 10px rgba(0, 212, 255, 0.2)'
+            ],
+            duration: 600,
+            easing: 'easeOutElastic(1, .5)'
+        });
+    }
+    if (originalInputGestureDigit) originalInputGestureDigit(digit);
+}
+
+function initEchoTransmission() {
+    const textEl = document.getElementById('echo-text');
+    if (!textEl) return;
+    
+    const messages = [
+        "AGENT PROTOCOL ENGAGED...",
+        "SCANNING BIOMETRICS...",
+        "ANALYZING SECURITY THREATS...",
+        "AWAITING CLEARANCE...",
+        "SYSTEM ENCRYPTED.",
+        "NATURE SECTOR CRITICAL..."
+    ];
+    
+    let msgIndex = 0;
+    let charIndex = 0;
+    let isDeleting = false;
+    let typingSpeed = 60;
+    
+    function typeEffect() {
+        const currentMsg = messages[msgIndex];
+        
+        if (isDeleting) {
+            textEl.innerHTML = currentMsg.substring(0, charIndex - 1) + '<span class="echo-cursor"></span>';
+            charIndex--;
+            typingSpeed = 30;
+        } else {
+            textEl.innerHTML = currentMsg.substring(0, charIndex + 1) + '<span class="echo-cursor"></span>';
+            charIndex++;
+            typingSpeed = Math.random() * 50 + 40; // Random speed between 40ms and 90ms
+        }
+        
+        if (!isDeleting && charIndex === currentMsg.length) {
+            typingSpeed = 2500; // Pause at the end of typing
+            isDeleting = true;
+        } else if (isDeleting && charIndex === 0) {
+            isDeleting = false;
+            msgIndex = (msgIndex + 1) % messages.length;
+            typingSpeed = 500; // Pause before typing next message
+        }
+        
+        setTimeout(typeEffect, typingSpeed);
+    }
+    
+    // Start after a short delay
+    setTimeout(typeEffect, 1500);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // --- UI Event Listeners extracted from index.html inline attributes ---
+    document.getElementById('audio-toggle')?.addEventListener('click', () => { if (typeof toggleAudio === 'function') toggleAudio(); });
+    document.getElementById('btn-alert-ack')?.addEventListener('click', () => { if (typeof closeModal === 'function') closeModal('modal-alert'); });
+    document.getElementById('btn-auth-proceed')?.addEventListener('click', () => { 
+        if (typeof closeModal === 'function') closeModal('modal-auth'); 
+        if (typeof startLevel1 === 'function') startLevel1(); 
+    });
+    document.getElementById('btn-mission-understood')?.addEventListener('click', () => { if (typeof closeModal === 'function') closeModal('modal-mission'); });
+    document.getElementById('startBtn')?.addEventListener('click', (e) => { if (typeof handleStartMission === 'function') handleStartMission(e); });
+    document.getElementById('btn-dashboard')?.addEventListener('click', () => { if (typeof openDashboard === 'function') openDashboard(); });
+    
+    // --- Page Routing ---
     const pageId = document.body ? document.body.id : '';
     if (pageId === 'page-level1') {
         startLevel1();
@@ -1760,5 +1988,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (pageId === 'page-level3') {
         proceedToLevel3();
     }
+
+    // Initialize Masterpiece Visuals
+    initMasterpieceVisuals();
+    
+    // Initialize Echo Typing
+    initEchoTransmission();
 });
-
+

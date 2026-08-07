@@ -14,20 +14,20 @@ const CLUES = [
   {
     index: 1,
     text: 'Locate the digital clock tower near the Central Quad. Find the 4-digit relay box code.',
-    location: 'Central Quad — clock tower relay box',
-    answerCode: '7412',
+    location: 'hi',
+    answerCode: '0000',
   },
   {
     index: 2,
     text: 'Proceed to the Robotics Lab door. Decode the binary matrix posted on the scanner.',
     location: 'Robotics Lab — door scanner',
-    answerCode: '3391',
+    answerCode: '0000',
   },
   {
     index: 3,
     text: 'Locate the Velocity Crystal Shrine at the rooftop garden. Note down the Secret Master Code.',
     location: 'Rooftop garden — Velocity Crystal Shrine',
-    answerCode: '5820',
+    answerCode: '0000',
   },
 ];
 
@@ -41,10 +41,11 @@ async function main() {
   }
 
   // The 4-digit code entered by hand gesture at the end of Level 1.
+  const FINAL_CODE = process.env.FINAL_CODE || '1111'; // Fallback for local testing
   await prisma.gameSetting.upsert({
     where: { key: SETTING_KEYS.FINAL_SECRET_CODE },
-    update: {},
-    create: { key: SETTING_KEYS.FINAL_SECRET_CODE, value: '2026' },
+    update: { value: FINAL_CODE },
+    create: { key: SETTING_KEYS.FINAL_SECRET_CODE, value: FINAL_CODE },
   });
 
   const clueCount = await prisma.clue.count();

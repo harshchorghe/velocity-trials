@@ -39,6 +39,8 @@ export interface LeaderboardRow {
   totalZones: number;
   crystals: number;
   level1DurationMs: number | null;
+  level2DurationMs: number | null;
+  level3DurationMs: number | null;
   status: string;
   champion: boolean;
   score: number;
@@ -66,6 +68,8 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
       totalZones: 3,
       crystals,
       level1DurationMs: s.level1?.durationMs ?? null,
+      level2DurationMs: s.level2?.durationMs ?? null,
+      level3DurationMs: s.level3?.durationMs ?? null,
       status: s.status,
       champion,
       score: computeScore({

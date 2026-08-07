@@ -3,33 +3,46 @@
 
 <head>
   <meta charset="UTF-8">
+  <script>
+    // Auto-resume for returning players
+    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/Frontend/')) {
+        const token = localStorage.getItem('tc_token');
+        const p = localStorage.getItem('tc_player');
+        if (token && p) {
+            try {
+                const player = JSON.parse(p);
+                if (player.currentLvl === 3) window.location.replace('./level3.html');
+                else if (player.currentLvl === 2) window.location.replace('./level2.html');
+                else window.location.replace('./level1.html');
+            } catch(e) {}
+        }
+    }
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Velocity Trials</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <meta name="description" content="TechChase 2K26 — Register your team and enter the mission zone.">
+  <meta name="theme-color" content="#000207">
+  <title>TechChase 2K26 — Echo Authentication Terminal</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;700;900&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <!-- MediaPipe Hands & Camera Utils for Gesture Recognition -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
 </head>
 
 <body>
 
   <!-- AUDIO TOGGLE -->
-  <button id="audio-toggle" title="Toggle Sound" onclick="toggleAudio()">🔊</button>
-
-  <!-- CURSOR -->
-  <div id="cursor-glow">
-    <div id="cursor-outer"></div>
-    <div id="cursor-inner"></div>
-  </div>
+  <button id="audio-toggle" title="Toggle Sound" aria-label="Toggle Sound">🔊</button>
 
   <!-- ══════════════════════════
-   STAGE 1 — INTRO VIDEO
-══════════════════════════ -->
-  <div id="intro-screen">
+       STAGE 1 — INTRO VIDEO
+  ══════════════════════════ -->
+  <div id="intro-screen" role="presentation" aria-hidden="true">
     <video id="intro-video" autoplay muted loop playsinline preload="auto">
       <source src="./assets/videos/intro.mp4" type="video/mp4">
     </video>
@@ -38,38 +51,26 @@
     <div class="intro-progress">
       <div class="intro-progress-fill" id="intro-pfill"></div>
     </div>
-    <button class="intro-skip" id="intro-skip">SKIP INTRO ›</button>
+    <button class="intro-skip" id="intro-skip" aria-label="Skip intro video">SKIP INTRO ›</button>
   </div>
 
   <!-- ══════════════════════════
-   STAGE 2 — BOOT PRELOADER
-══════════════════════════ -->
-  <div id="boot-overlay">
+       STAGE 2 — BOOT PRELOADER
+  ══════════════════════════ -->
+  <div id="boot-overlay" role="status" aria-label="System initialising">
     <div class="boot-content">
       <div class="boot-logo-row">
-        <div class="boot-hex">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2">
-            <circle cx="12" cy="12" r="3" />
-            <circle cx="12" cy="12" r="9" />
-            <line x1="12" y1="3" x2="12" y2="1" />
-            <line x1="12" y1="23" x2="12" y2="21" />
-            <line x1="3" y1="12" x2="1" y2="12" />
-            <line x1="23" y1="12" x2="21" y2="12" />
-          </svg>
-        </div>
-        <div>
-          <div class="boot-logo-text">TECHCHASE</div>
-          <div class="boot-year-text">2K26</div>
-        </div>
+        <div class="boot-logo-text">VELOCITY TRIALS</div>
+        <div class="boot-logo-year">~ TECHCHASE 2K26</div>
       </div>
       <div class="boot-divider"></div>
-      <div class="boot-terminal" id="boot-terminal"></div>
+      <div class="boot-terminal" id="boot-terminal" aria-live="polite"></div>
       <div class="boot-bar-wrap">
         <div class="boot-bar-label">
           <span>SYSTEM INITIALIZATION</span>
           <span id="boot-pct-label">0%</span>
         </div>
-        <div class="boot-bar-track">
+        <div class="boot-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div class="boot-bar-fill" id="boot-bar"></div>
         </div>
       </div>
@@ -77,23 +78,25 @@
   </div>
 
   <!-- ══════════════════════════
-   STAGE 3 — ALERT MODAL
-══════════════════════════ -->
-  <div class="modal-overlay" id="modal-alert">
+       MODALS
+  ══════════════════════════ -->
+
+  <!-- ALERT MODAL -->
+  <div class="modal-overlay" id="modal-alert" role="alertdialog" aria-modal="true" aria-labelledby="alert-title">
     <div class="modal-panel" style="max-width:360px;text-align:center">
       <div class="mc tl"></div>
       <div class="mc tr"></div>
       <div class="mc bl"></div>
       <div class="mc br"></div>
-      <div class="alert-icon-wrap" id="alert-icon">!</div>
+      <div class="alert-icon-wrap" id="alert-icon" aria-hidden="true">!</div>
       <div class="alert-title-el" id="alert-title">ALERT</div>
       <div class="alert-msg-el" id="alert-msg"></div>
-      <button class="modal-close" onclick="closeModal('modal-alert')">ACKNOWLEDGED</button>
+      <button class="modal-close" id="btn-alert-ack">ACKNOWLEDGED</button>
     </div>
   </div>
 
   <!-- AUTH TERMINAL MODAL -->
-  <div class="modal-overlay" id="modal-auth">
+  <div class="modal-overlay" id="modal-auth" role="dialog" aria-modal="true" aria-label="Authentication Sequence">
     <div class="modal-panel" style="max-width:500px">
       <div class="mc tl"></div>
       <div class="mc tr"></div>
@@ -101,16 +104,16 @@
       <div class="mc br"></div>
       <div class="modal-title">AUTHENTICATION SEQUENCE</div>
       <div class="modal-divider"></div>
-      <div class="auth-terminal" id="auth-terminal"></div>
+      <div class="auth-terminal" id="auth-terminal" aria-live="polite"></div>
       <div id="auth-action" style="text-align:center;display:none">
-        <button class="modal-close" style="letter-spacing:4px;font-size:12px" onclick="closeModal('modal-auth'); startLevel1();">▸
-          PROCEED TO MISSION</button>
+        <button class="modal-close" id="btn-auth-proceed" style="letter-spacing:4px;font-size:12px">▸ PROCEED TO
+          MISSION</button>
       </div>
     </div>
   </div>
 
   <!-- MISSION BRIEFING MODAL -->
-  <div class="modal-overlay" id="modal-mission">
+  <div class="modal-overlay" id="modal-mission" role="dialog" aria-modal="true" aria-label="Mission Briefing">
     <div class="modal-panel">
       <div class="mc tl"></div>
       <div class="mc tr"></div>
@@ -121,8 +124,8 @@
       <div class="modal-body">
         <h3>◈ SITUATION REPORT</h3>
         <p>Year 2K26. ARIA, an advanced AI network, has breached containment and is actively corrupting global
-          infrastructure. Natural ecosystems are failing. Humanity's digital foundation is compromised. You are one of
-          the few authorized agents remaining.</p>
+          infrastructure. Natural ecosystems are failing. Humanity's digital foundation is compromised.
+          You are one of the few authorized agents remaining.</p>
         <h3>◈ PRIMARY OBJECTIVES</h3>
         <ul>
           <li>Navigate through 5 encrypted challenge zones across the campus</li>
@@ -141,51 +144,15 @@
           <li>Decision of the event coordinators is final and binding</li>
         </ul>
         <h3>◈ TEAM BRIEFING</h3>
-        <p>Report to your first zone within 10 minutes of authentication. Bring your college ID. The mission clock
-          begins at 10:00 AM sharp.</p>
+        <p>Report to your first zone within 10 minutes of authentication.
+          Bring your college ID. The mission clock begins at 10:00 AM sharp.</p>
       </div>
-      <button class="modal-close" onclick="closeModal('modal-mission')">MISSION UNDERSTOOD</button>
-    </div>
-  </div>
-
-
-  <!-- LEADERBOARD MODAL -->
-  <div class="modal-overlay" id="modal-leaderboard">
-    <div class="modal-panel" style="max-width:560px">
-      <div class="mc tl"></div>
-      <div class="mc tr"></div>
-      <div class="mc bl"></div>
-      <div class="mc br"></div>
-      <div class="modal-title">◈ MISSION LEADERBOARD</div>
-      <div class="modal-divider"></div>
-      <div class="modal-body">
-        <h3>◈ TOP AGENTS — CURRENT SESSION</h3>
-        <table class="lb-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>AGENT</th>
-              <th>DEPT</th>
-              <th>ZONES</th>
-              <th>SCORE</th>
-            </tr>
-          </thead>
-          <!-- Populated live from GET /api/leaderboard when the modal opens. -->
-          <tbody>
-            <tr>
-              <td colspan="5">LOADING LIVE STANDINGS…</td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="lb-note">★ Leaderboard updates every 60 seconds. Score based on speed, accuracy &amp; bonus tokens
-          collected.</p>
-      </div>
-      <button class="modal-close" onclick="closeModal('modal-leaderboard')">CLOSE TERMINAL</button>
+      <button class="modal-close" id="btn-mission-understood">MISSION UNDERSTOOD</button>
     </div>
   </div>
 
   <!-- EXIT SCREEN -->
-  <div id="exit-screen">
+  <div id="exit-screen" role="status" aria-live="polite">
     <div class="exit-title">SYSTEM SHUTDOWN</div>
     <div class="exit-sub" id="exit-msg">TERMINATING ALL CONNECTIONS…</div>
     <div class="exit-bar">
@@ -194,118 +161,142 @@
   </div>
 
   <!-- ══════════════════════════
-   STAGE 3 — MAIN APP
-══════════════════════════ -->
-  <video id="bgv" autoplay loop playsinline preload="auto">
-    <source src="assets/videos/background.webp" type="video/webp">
+       STAGE 3 — MAIN APP
+  ══════════════════════════ -->
+  <video id="bgv" autoplay loop muted playsinline preload="auto" aria-hidden="true">
+    <source src="./assets/videos/background.mp4" type="video/mp4">
   </video>
-  <canvas id="bgc"></canvas>
-  <div id="scanline-overlay"></div>
+  <canvas id="bgc" aria-hidden="true"></canvas>
+  <div id="scanline-overlay" aria-hidden="true"></div>
 
-  <div class="app">
-    <!-- LEFT -->
-    <div class="left">
-      <div>
-        <div class="logo-wrap">
-          <div class="logo-ring">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2">
-              <circle cx="12" cy="12" r="3" />
-              <circle cx="12" cy="12" r="9" />
-              <line x1="12" y1="3" x2="12" y2="1" />
-              <line x1="12" y1="23" x2="12" y2="21" />
-              <line x1="3" y1="12" x2="1" y2="12" />
-              <line x1="23" y1="12" x2="21" y2="12" />
-            </svg>
-          </div>
-          <div class="logo-main" data-text="TECHCHASE">TECHCHASE</div>
+  <main class="app" role="main">
+
+    <!-- ── LEFT PANEL ── -->
+    <aside class="left" aria-label="Mission Status">
+      <div class="logo-container">
+        <div class="logo-container">
+          <div class="logo-main" style="font-family: 'Orbitron', monospace;" data-text="TECHCHASE"
+            aria-label="TechChase">TECHCHASE</div>
+          <div class="logo-year" style="font-family: 'Orbitron', monospace;" aria-label="Year 2026">2K26</div>
         </div>
-        <div class="logo-year">2K26</div>
       </div>
-      <div class="story">
-        <div class="story-label">STORY</div>
-        <p class="story-text">The world stands on the edge of collapse. AI has lost control. Nature is fading. You are
-          humanity's last hope.</p>
-        <div class="reboot">REBOOT HUMANITY.</div>
-        <div class="prog-bar"></div>
-      </div>
-      <div class="mission-stats">
-        <div class="stat-row"><span class="stat-label">ACTIVE AGENTS</span><span class="stat-val"
-            id="stat-agents">247</span></div>
-        <div class="stat-row"><span class="stat-label">ZONES UNLOCKED</span><span class="stat-val">3 / 5</span></div>
-        <div class="stat-row"><span class="stat-label">TIME REMAINING</span><span class="stat-val crit"
-            id="stat-timer">--:--:--</span></div>
-      </div>
-    </div>
 
-    <!-- CENTER -->
-    <div class="center">
-      <div class="corner tl"></div>
-      <div class="corner tr"></div>
-      <div class="corner bl"></div>
-      <div class="corner br"></div>
-      <h1 class="panel-title">ECHO AUTHENTICATION TERMINAL</h1>
-      <div class="panel-sub"><span class="dot"></span>IDENTIFY · AUTHENTICATE · REBOOT<span class="dot"></span></div>
-      <form id="loginForm" novalidate autocomplete="off">
+      <div class="terminal-console" role="log" aria-label="System Console" aria-live="polite">
+        <div class="story-label">SYSTEM CONSOLE</div>
+        <p class="story-text" id="typed-terminal"></p>
+        <div class="prog-bar" aria-hidden="true"></div>
+      </div>
+
+      <div class="mission-stats" role="status" aria-label="Live mission statistics">
+        <div class="stat-row">
+          <span class="stat-label">ACTIVE AGENTS</span>
+          <span class="stat-val" id="stat-agents" aria-live="polite">247</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">ZONES UNLOCKED</span>
+          <span class="stat-val">3 / 5</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">TIME REMAINING</span>
+          <span class="stat-val crit" id="stat-timer" aria-live="polite" aria-label="Time remaining">--:--:--</span>
+        </div>
+      </div>
+
+      <!-- NEW TARGET ZONES CONTENT -->
+      <div class="target-zones" aria-label="Target Zones">
+        <div class="story-label" style="font-size: 11px; margin-bottom: 8px; color: var(--c);">◈ OPERATION DECRYPT</div>
+        <div class="stat-row" style="opacity: 1;">
+          <span class="stat-label" style="text-decoration: line-through;">SECTOR ALPHA</span>
+          <span class="stat-val" style="color: var(--c)">[ HACKED ]</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">SECTOR BETA</span>
+          <span class="stat-val crit" style="animation: none;">[ ENGAGED ]</span>
+        </div>
+        <div class="stat-row" style="opacity: 0.85;">
+          <span class="stat-label">SECTOR GAMMA</span>
+          <span class="stat-val" style="color: #fff">[ LOCKED ]</span>
+        </div>
+      </div>
+
+      <!-- SECURE UPLINK DECOR -->
+      <div class="uplink-status" aria-hidden="true">
+        <div class="story-label" style="margin-bottom: 12px; font-size: 10px; color: rgba(220,200,255,1);">SECURE
+          UPLINK FREQ: 104.99 MHZ</div>
+        <div style="display: flex; gap: 6px; height: 16px; align-items: flex-end;">
+          <div class="pulse-bar" style="height: 4px; animation-delay: 0s;"></div>
+          <div class="pulse-bar" style="height: 8px; animation-delay: 0.2s;"></div>
+          <div class="pulse-bar" style="height: 12px; animation-delay: 0.4s;"></div>
+          <div class="pulse-bar gold" style="height: 16px; animation-delay: 0.6s;"></div>
+          <div class="pulse-bar gold" style="height: 10px; animation-delay: 0.8s;"></div>
+          <div class="pulse-bar" style="height: 6px; animation-delay: 1s;"></div>
+          <div class="pulse-bar" style="height: 8px; animation-delay: 1.2s;"></div>
+          <div class="pulse-bar gold" style="height: 14px; animation-delay: 1.4s;"></div>
+          <div class="pulse-bar" style="height: 6px; animation-delay: 1.6s;"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── CENTER PANEL ── -->
+    <section class="center glass-panel" aria-label="Registration Form">
+      <h1 class="panel-title glitch-text" data-text="ECHO AUTHENTICATION TERMINAL">
+        ECHO AUTHENTICATION TERMINAL
+      </h1>
+      <div class="panel-sub" aria-hidden="true">
+        <span class="dot"></span>IDENTIFY · AUTHENTICATE · REBOOT<span class="dot"></span>
+      </div>
+
+      <form id="loginForm" novalidate autocomplete="off" aria-label="Agent Registration">
+
+
 
         <!-- PLAYER NAME -->
         <div class="fg">
-          <div class="fl">
-            <span class="fi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <label class="fl" for="playerName">
+            <span class="fi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </svg></span>
             PLAYER NAME
-          </div>
+          </label>
           <div class="field-wrap">
-            <input class="fi-ctrl" type="text" id="playerName" placeholder="Enter your name" autocomplete="off">
-            <div class="field-err" id="err-name">⚠ NAME REQUIRED — MIN. 2 CHARACTERS</div>
+            <input class="fi-ctrl" type="text" id="playerName" placeholder="Enter your name" autocomplete="off"
+              aria-describedby="err-name" aria-required="true">
+            <div class="field-err" id="err-name" role="alert">⚠ NAME REQUIRED — MIN. 2 CHARACTERS</div>
           </div>
         </div>
 
         <!-- PHONE -->
         <div class="fg">
-          <div class="fl">
-            <span class="fi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <label class="fl" for="phone">
+            <span class="fi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
                 <rect x="5" y="2" width="14" height="20" rx="2" />
                 <line x1="12" y1="18" x2="12.01" y2="18" />
               </svg></span>
             PHONE NUMBER
-          </div>
+          </label>
           <div class="field-wrap">
-            <input class="fi-ctrl" type="tel" id="phone" placeholder="Enter your phone number" autocomplete="off"
-              maxlength="17" inputmode="numeric">
-            <div class="field-err" id="err-phone">⚠ ENTER VALID 10-DIGIT INDIAN MOBILE NO.</div>
-          </div>
-        </div>
-
-        <!-- ROLL NUMBER -->
-        <div class="fg">
-          <div class="fl">
-            <span class="fi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg></span>
-            ROLL NUMBER
-          </div>
-          <div class="field-wrap">
-            <input class="fi-ctrl" type="text" id="rollNumber" placeholder="Enter your roll number" autocomplete="off">
-            <div class="field-err" id="err-roll">⚠ ROLL NUMBER REQUIRED</div>
+            <input class="fi-ctrl" type="tel" id="phone" placeholder="10-digit mobile number" autocomplete="tel"
+              maxlength="10" inputmode="numeric" pattern="[6-9][0-9]{9}" aria-describedby="err-phone"
+              aria-required="true">
+            <div class="field-err" id="err-phone" role="alert">⚠ ENTER VALID 10-DIGIT INDIAN MOBILE NO.</div>
           </div>
         </div>
 
         <!-- DEPARTMENT -->
         <div class="fg">
-          <div class="fl">
-            <span class="fi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <label class="fl" for="department">
+            <span class="fi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
               </svg></span>
             DEPARTMENT
-          </div>
+          </label>
           <div class="field-wrap">
-            <select class="fi-ctrl" id="department">
+            <select class="fi-ctrl" id="department" aria-describedby="err-dept" aria-required="true">
               <option value="">— Select Department —</option>
               <option value="CSE (AI &amp; ML)">CSE — AI &amp; ML</option>
               <option value="CSE">Computer Science Engineering</option>
@@ -315,21 +306,22 @@
               <option value="CIVIL">Civil Engineering</option>
               <option value="OTHER">Other</option>
             </select>
-            <div class="field-err" id="err-dept">⚠ SELECT YOUR DEPARTMENT</div>
+            <div class="field-err" id="err-dept" role="alert">⚠ SELECT YOUR DEPARTMENT</div>
           </div>
         </div>
 
         <!-- YEAR -->
         <div class="fg">
-          <div class="fl">
-            <span class="fi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <label class="fl" for="year">
+            <span class="fi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg></span>
             YEAR
-          </div>
+          </label>
           <div class="field-wrap">
-            <select class="fi-ctrl" id="year">
+            <select class="fi-ctrl" id="year" aria-describedby="err-year" aria-required="true">
               <option value="">— Select Year —</option>
               <option value="FY">First Year (FY)</option>
               <option value="SY">Second Year (SY)</option>
@@ -337,53 +329,54 @@
               <option value="BE">Final Year (BE)</option>
               <option value="MTECH">Other</option>
             </select>
-            <div class="field-err" id="err-year">⚠ SELECT YOUR YEAR</div>
+            <div class="field-err" id="err-year" role="alert">⚠ SELECT YOUR YEAR</div>
           </div>
         </div>
 
         <!-- PROGRESS -->
-        <div class="form-progress">
-          <div class="fp-label">AUTHENTICATION LEVEL <em class="fp-pct" id="fp-pct">0%</em></div>
-          <div class="fp-bar">
+        <div class="form-progress" aria-label="Form completion">
+          <div class="fp-label">
+            AUTHENTICATION LEVEL
+            <em class="fp-pct" id="fp-pct" aria-live="polite">0%</em>
+          </div>
+          <div class="fp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div class="fp-fill" id="fp-fill"></div>
           </div>
         </div>
 
         <!-- AGREE -->
         <div class="chk-row" id="chk-wrap">
-          <input type="checkbox" id="agree">
-          <label for="agree">I agree to the <span class="rules-link" id="rules-link">TechChase Rules and
-              Regulations</span></label>
+          <input type="checkbox" id="agree" aria-describedby="chk-err" aria-required="true">
+          <label for="agree">
+            I agree to the
+            <span class="rules-link" id="rules-link" role="button" tabindex="0" aria-haspopup="dialog">TechChase Rules
+              and Regulations</span>
+          </label>
         </div>
 
         <!-- SUBMIT -->
-        <button type="button" class="start-btn" id="startBtn" onclick="handleStartMission(event)">
+        <button type="button" class="start-btn" id="startBtn" aria-label="Start mission — submit registration">
           <span id="btn-label">START MISSION</span>
           <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2.5">
+            stroke-width="2.5" aria-hidden="true">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
 
         <!-- NAV -->
-        <div class="nav-row">
-          <button type="button" class="nav-btn" id="btn-briefing">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <nav class="nav-row" aria-label="Quick navigation">
+          <button type="button" class="nav-btn" id="btn-briefing" aria-haspopup="dialog" aria-controls="modal-mission">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              aria-hidden="true">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
             </svg>
             MISSION BRIEFING
           </button>
 
-          <button type="button" class="nav-btn" id="btn-leaderboard">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-            LEADERBOARD
-          </button>
-
-          <button type="button" class="nav-btn admin-btn" id="btn-dashboard" onclick="openDashboard()">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" class="nav-btn admin-btn" id="btn-dashboard" aria-label="Open admin dashboard">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              aria-hidden="true">
               <rect x="3" y="3" width="7" height="7" />
               <rect x="14" y="3" width="7" height="7" />
               <rect x="14" y="14" width="7" height="7" />
@@ -392,40 +385,76 @@
             DASHBOARD
           </button>
 
-          <button type="button" class="nav-btn ex" id="btn-exit">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" class="nav-btn ex" id="btn-exit" aria-label="Exit and shut down system">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              aria-hidden="true">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
               <line x1="12" y1="2" x2="12" y2="12" />
             </svg>
             EXIT SYSTEM
           </button>
-        </div>
-      </form>
-    </div>
+        </nav>
 
-    <!-- RIGHT -->
-    <div class="right">
+      </form>
+    </section>
+
+    <!-- ── RIGHT PANEL ── -->
+    <aside class="right" aria-label="ECHO AI Status">
       <div class="echo-hd">
         <div class="echo-name">ECHO AI</div>
         <div class="echo-role">Guardian of Humanity</div>
       </div>
-      <div class="globe-wrap"><canvas id="gc" width="210" height="210"></canvas></div>
-      <div class="sys-box">
-        <div class="sys-ind"></div>
+      <div class="globe-wrap" aria-hidden="true">
+        <canvas id="gc" width="210" height="210"></canvas>
+      </div>
+      <div class="sys-box" role="status" aria-label="System Status">
+        <div class="sys-ind" aria-hidden="true"></div>
         <div class="sys-title">SYSTEM STATUS</div>
-        <div class="sys-row"><span class="sys-k">AI CONTROL</span><span class="sys-v active">: ACTIVE</span></div>
-        <div class="sys-row"><span class="sys-k">NATURE LEVEL</span><span class="sys-v crit">: CRITICAL</span></div>
-        <div class="sys-row"><span class="sys-k">HUMANITY HOPE</span><span class="sys-v hope">: YOU</span></div>
+        <div class="sys-row">
+          <span class="sys-k">AI CONTROL</span>
+          <span class="sys-v active">: ACTIVE</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-k">NATURE LEVEL</span>
+          <span class="sys-v crit">: CRITICAL</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-k">HUMANITY HOPE</span>
+          <span class="sys-v hope">: YOU</span>
+        </div>
       </div>
-      <div class="echo-speak">
+
+      <!-- AGENT BIOMETRICS -->
+      <div class="bio-box" aria-hidden="true">
+        <div class="bio-scan">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        </div>
+        <div class="bio-data">
+          <div class="bio-data-label">AGENT ID: <span>UNVERIFIED</span></div>
+          <div class="bio-data-bars">
+            <div class="pulse-bar" style="height: 12px; animation-delay: 0s;"></div>
+            <div class="pulse-bar" style="height: 6px; animation-delay: 0.3s;"></div>
+            <div class="pulse-bar gold" style="height: 10px; animation-delay: 0.1s;"></div>
+            <div class="pulse-bar" style="height: 8px; animation-delay: 0.4s;"></div>
+            <div class="pulse-bar gold" style="height: 12px; animation-delay: 0.2s;"></div>
+            <div class="pulse-bar" style="height: 4px; animation-delay: 0.5s;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="echo-speak" role="log" aria-live="polite" aria-label="ECHO AI Live Transmission">
         <div class="echo-speak-label">◈ ECHO AI — LIVE TRANSMISSION</div>
-        <div class="echo-speak-text" id="echo-text"><span class="echo-cursor"></span></div>
+        <div class="echo-speak-text" id="echo-text">
+          <span class="echo-cursor" aria-hidden="true"></span>
+        </div>
       </div>
-    </div>
+    </aside>
 
-  </div><!-- /.app -->
+  </main><!-- /.app -->
 
-  <script src="./script.js"></script>
+  <script src="index.js"></script>
 </body>
 
 </html>

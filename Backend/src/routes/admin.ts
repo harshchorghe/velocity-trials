@@ -7,7 +7,6 @@ import { badRequest, unauthorized } from '../lib/errors';
 
 const router = Router();
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
 /** In-memory admin sessions — fine for a single-process event server. */
@@ -44,11 +43,12 @@ export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
  * shipped its password in client-side JS, so anyone could read it from source.
  */
 router.post('/login', (req, res) => {
-  if (!ADMIN_PASSWORD) {
+  const adminPwd = process.env.ADMIN_PASSWORD;
+  if (!adminPwd) {
     throw badRequest('ADMIN_DISABLED', 'ADMIN_PASSWORD is not configured on the server');
   }
   const { password } = (req.body ?? {}) as { password?: unknown };
-  if (typeof password !== 'string' || !timingSafeEquals(password, ADMIN_PASSWORD)) {
+  if (typeof password !== 'string' || !timingSafeEquals(password, adminPwd)) {
     throw unauthorized('Incorrect admin password');
   }
 
@@ -89,8 +89,10 @@ router.get('/agents', requireAdmin, async (_req, res) => {
       crystals: s.level2?.crystalsCollected ?? 0,
       lives: s.level2?.lives ?? null,
       level2Qualified: s.level2?.qualified ?? false,
+      level2DurationMs: s.level2?.durationMs ?? null,
       bossHp: s.level3?.bossHp ?? null,
       champion: s.level3?.champion ?? false,
+      level3DurationMs: s.level3?.durationMs ?? null,
       zonesCleared: row?.zonesCleared ?? 0,
       score: row?.score ?? 0,
     };
