@@ -38,5 +38,45 @@ Velocity Trails is a 3-level hybrid elimination game designed for TechChase 2K26
 
 ## Technical Stack
 - **Frontend**: HTML5, CSS3, Vanilla JS (Currently implementing Three.js & Anime.js prototypes for the 3D levels).
-- **Backend**: Node.js, Express, SQLite, Prisma ORM. 
+- **Backend**: Node.js, Express, PostgreSQL, Prisma ORM. 
 - *Note: Levels 2 and 3 will be migrated to Unity in the future, with the backend serving as the central authentication and leaderboard system.*
+
+---
+
+## Deploying to Render.com
+
+This project is configured for a **1-click deployment** to Render using the included `render.yaml` Blueprint. The deployment includes a Node.js web server and a free PostgreSQL database.
+
+### Step-by-Step Deployment Guide
+
+**1. Create a Render Account**
+- Go to [Render.com](https://dashboard.render.com/) and create a free account using your GitHub login.
+
+**2. Create a New Blueprint**
+- Once logged in, click the **New** button in the top-right corner.
+- Select **Blueprint** from the dropdown menu.
+
+**3. Connect Your Repository**
+- Render will ask you to connect your GitHub account. Give it permission to view your repositories.
+- Select your `velocity_trails` repository from the list.
+
+**4. Deploy!**
+- Render will automatically detect the `render.yaml` file in the root of your repository.
+- You will see a summary showing that it will create a **Web Service** (`velocity-trails-backend`) and a **PostgreSQL Database** (`velocity-trails-db`).
+- Click **Apply** or **Deploy**.
+
+### What happens during deployment?
+Render will automatically handle everything for you:
+1. It spins up the free PostgreSQL database.
+2. It installs the backend Node.js dependencies (`npm install`).
+3. It pushes the database schema to PostgreSQL (`npx prisma db push`).
+4. It seeds the database with initial configurations (`npm run seed`).
+5. It starts the backend server on Port 4000.
+
+### Accessing your Live Backend & Dashboard
+Once the deployment finishes, Render will provide a public URL (e.g., `https://velocity-trails-backend.onrender.com`).
+- Your backend API will be live at that URL.
+- You can access the live **Admin Dashboard** at `https://velocity-trails-backend.onrender.com/dashboard`. The auto-generated password is `velocity2k26`.
+
+### Local Development Note
+If you want to run the backend locally on your computer after migrating to PostgreSQL, you will need to have a local PostgreSQL server running, or you can temporarily change `provider = "postgresql"` back to `provider = "sqlite"` in `Backend/prisma/schema.prisma` for local testing.
