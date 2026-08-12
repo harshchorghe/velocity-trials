@@ -888,9 +888,8 @@ function startLevel1() {
         document.getElementById('lvl1-timer').textContent = `${m}:${s}.${ms}`;
     }, 100);
 
-    // Initialize Camera / WebCam directly
+    // Initialize Camera / WebCam directly (requestCameraAccess already starts MediaPipe gesture recognition)
     requestCameraAccess();
-    initWebcamScanner();
 }
 
 /** Paints the three clue cards to match the server's solvedCount. */
@@ -1108,7 +1107,7 @@ async function submitFinalGestureCode() {
         const curPid = playerInfo.playerId || ('player-' + (playerInfo.playerSlot || 1));
         const pObj = roomData.players.find(p => p.id === curPid || p.slot === playerInfo.playerSlot);
         if (pObj) {
-            pObj.level1Time = GAME_STATE.level1.elapsedTime || 0;
+            pObj.level1Time = GAME_STATE.level1.timer || 0;
             pObj.level1Status = isQualified ? 'QUALIFIED' : 'ELIMINATED';
         }
 
