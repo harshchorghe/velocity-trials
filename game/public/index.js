@@ -93,134 +93,21 @@ const API = {
    AUDIO ENGINE — Web Audio API (no external files)
 ══════════════════════════════ */
 const AUDIO = (function () {
-    let ctx = null, masterGain = null, ambientNode = null, ambientGain = null;
-    let muted = false, started = false;
-
-    function getCtx() {
-        if (!ctx) {
-            ctx = new (window.AudioContext || window.webkitAudioContext)();
-            masterGain = ctx.createGain();
-            masterGain.gain.setValueAtTime(0.55, ctx.currentTime);
-            masterGain.connect(ctx.destination);
-        }
-        return ctx;
-    }
-
-    /* Low-frequency ambient drone */
-    function startAmbient() {
-        if (ambientNode) return;
-        const c = getCtx();
-        ambientGain = c.createGain();
-        ambientGain.gain.setValueAtTime(0, c.currentTime);
-        ambientGain.gain.linearRampToValueAtTime(0.18, c.currentTime + 3);
-        ambientGain.connect(masterGain);
-
-        // Sub drone
-        const osc1 = c.createOscillator();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(55, c.currentTime);
-        osc1.connect(ambientGain);
-        osc1.start();
-
-        // Slight detune layer
-        const osc2 = c.createOscillator();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(58.5, c.currentTime);
-        const g2 = c.createGain(); g2.gain.setValueAtTime(0.6, c.currentTime);
-        osc2.connect(g2); g2.connect(ambientGain);
-        osc2.start();
-
-        // High shimmer
-        const osc3 = c.createOscillator();
-        osc3.type = 'triangle';
-        osc3.frequency.setValueAtTime(880, c.currentTime);
-        const g3 = c.createGain(); g3.gain.setValueAtTime(0.04, c.currentTime);
-        // Slow LFO on shimmer
-        const lfo = c.createOscillator();
-        lfo.frequency.setValueAtTime(0.18, c.currentTime);
-        const lfoGain = c.createGain(); lfoGain.gain.setValueAtTime(0.035, c.currentTime);
-        lfo.connect(lfoGain); lfoGain.connect(g3.gain);
-        lfo.start(); osc3.connect(g3); g3.connect(ambientGain); osc3.start();
-
-        // Noise layer
-        const bufSize = c.sampleRate * 2;
-        const buf = c.createBuffer(1, bufSize, c.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.012;
-        const noise = c.createBufferSource();
-        noise.buffer = buf; noise.loop = true;
-        const bpf = c.createBiquadFilter();
-        bpf.type = 'bandpass'; bpf.frequency.setValueAtTime(200, c.currentTime); bpf.Q.setValueAtTime(0.5, c.currentTime);
-        noise.connect(bpf); bpf.connect(ambientGain);
-        noise.start();
-
-        ambientNode = osc1;
-    }
-
-    /* Synth beep helper */
-    function beep({ freq = 440, type = 'square', vol = 0.18, dur = 0.12, ramp = 0.08 } = {}) {
-        if (muted) return;
-        try {
-            const c = getCtx();
-            const osc = c.createOscillator();
-            const g = c.createGain();
-            osc.type = type; osc.frequency.setValueAtTime(freq, c.currentTime);
-            g.gain.setValueAtTime(vol, c.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur + ramp);
-            osc.connect(g); g.connect(masterGain);
-            osc.start(c.currentTime); osc.stop(c.currentTime + dur + ramp);
-        } catch (e) { }
-    }
-
-    /* Public SFX */
-    function sfxClick() { beep({ freq: 880, type: 'square', vol: 0.14, dur: 0.04, ramp: 0.06 }); }
-    function sfxHover() { beep({ freq: 660, type: 'sine', vol: 0.07, dur: 0.03, ramp: 0.04 }); }
-    function sfxType() { beep({ freq: 1200 + Math.random() * 400, type: 'square', vol: 0.05, dur: 0.02, ramp: 0.02 }); }
-    function sfxSuccess() {
-        beep({ freq: 523, type: 'triangle', vol: 0.18, dur: 0.1, ramp: 0.05 });
-        setTimeout(() => beep({ freq: 659, type: 'triangle', vol: 0.18, dur: 0.1, ramp: 0.05 }), 120);
-        setTimeout(() => beep({ freq: 784, type: 'triangle', vol: 0.22, dur: 0.18, ramp: 0.12 }), 240);
-    }
-    function sfxError() {
-        beep({ freq: 220, type: 'sawtooth', vol: 0.2, dur: 0.08, ramp: 0.08 });
-        setTimeout(() => beep({ freq: 196, type: 'sawtooth', vol: 0.15, dur: 0.12, ramp: 0.1 }), 100);
-    }
-    function sfxBoot() {
-        [261, 329, 392, 523].forEach((f, i) => setTimeout(() => beep({ freq: f, type: 'square', vol: 0.12, dur: 0.08 }), i * 120));
-    }
-    function sfxScifi() {
-        beep({ freq: 440, type: 'sawtooth', vol: 0.1, dur: 0.05, ramp: 0.05 });
-        setTimeout(() => beep({ freq: 880, type: 'square', vol: 0.12, dur: 0.06 }), 80);
-    }
-
-    function start() {
-        if (started) return;
-        started = true;
-        if (!muted) { getCtx(); if (ctx.state === 'suspended') ctx.resume().then(startAmbient); else startAmbient(); }
-    }
-
-    function toggle() {
-        muted = !muted;
-        const btn = document.getElementById('audio-toggle');
-        btn.textContent = muted ? '🔇' : '🔊';
-        btn.classList.toggle('muted', muted);
-        if (!muted) {
-            if (!started) start();
-            else { if (ctx) { ctx.resume(); if (ambientGain) ambientGain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 1); } }
-        } else {
-            if (ambientGain && ctx) ambientGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
-        }
-    }
-
-    return { start, toggle, sfxClick, sfxHover, sfxType, sfxSuccess, sfxError, sfxBoot, sfxScifi };
+    const noop = () => {};
+    return {
+        start: noop,
+        toggle: () => false,
+        sfxClick: noop,
+        sfxHover: noop,
+        sfxType: noop,
+        sfxSuccess: noop,
+        sfxError: noop,
+        sfxBoot: noop,
+        sfxScifi: noop
+    };
 })();
 
-function toggleAudio() { AUDIO.toggle(); }
-
-/* Kick audio on first user interaction */
-document.addEventListener('click', () => AUDIO.start(), { once: true });
-document.addEventListener('keydown', () => AUDIO.start(), { once: true });
-document.addEventListener('touchstart', () => AUDIO.start(), { once: true });
+function toggleAudio() {}
 
 /* ══ UTILITIES ══ */
 function animateNumber(element, finalValue, duration = 800) {
