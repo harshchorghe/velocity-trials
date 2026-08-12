@@ -877,18 +877,46 @@ function startLevel1() {
         l1El.style.display = 'flex';
     }
 
-    // Start timer
+    // 3-Minute Level 1 Countdown Timer & Total Campaign Timer
     if (GAME_STATE.level1.interval) clearInterval(GAME_STATE.level1.interval);
+    
+    let campaignStart = parseInt(localStorage.getItem('tc_campaign_start_time') || '0', 10);
+    if (!campaignStart || isNaN(campaignStart)) {
+        campaignStart = Date.now();
+        localStorage.setItem('tc_campaign_start_time', campaignStart.toString());
+    }
+
+    GAME_STATE.level1.remainingSeconds = 180.0;
+
     GAME_STATE.level1.interval = setInterval(() => {
-        GAME_STATE.level1.timer += 0.1;
-        const t = GAME_STATE.level1.timer;
-        const m = String(Math.floor(t / 60)).padStart(2, '0');
-        const s = String(Math.floor(t % 60)).padStart(2, '0');
-        const ms = String(Math.floor((t * 10) % 10));
-        document.getElementById('lvl1-timer').textContent = `${m}:${s}.${ms}`;
+        GAME_STATE.level1.remainingSeconds = Math.max(0, GAME_STATE.level1.remainingSeconds - 0.1);
+        const rem = GAME_STATE.level1.remainingSeconds;
+        const m = String(Math.floor(rem / 60)).padStart(2, '0');
+        const s = String(Math.floor(rem % 60)).padStart(2, '0');
+        const ms = String(Math.floor((rem * 10) % 10));
+        
+        const lvl1TimerEl = document.getElementById('lvl1-timer');
+        if (lvl1TimerEl) lvl1TimerEl.textContent = `${m}:${s}.${ms}`;
+
+        // Total Campaign Timer
+        const totSec = Math.floor((Date.now() - campaignStart) / 1000);
+        const totM = String(Math.floor(totSec / 60)).padStart(2, '0');
+        const totS = String(Math.floor(totSec % 60)).padStart(2, '0');
+        const totTimerEl = document.getElementById('total-campaign-timer');
+        if (totTimerEl) totTimerEl.textContent = `${totM}:${totS}`;
+
+        if (rem <= 0) {
+            clearInterval(GAME_STATE.level1.interval);
+            const failBanner = document.getElementById('lvl1-eliminated-banner');
+            if (failBanner) failBanner.style.display = 'flex';
+            if (typeof AUDIO !== 'undefined' && AUDIO.sfxError) AUDIO.sfxError();
+            if (typeof showAlert === 'function') {
+                showAlert('error', 'LEVEL 1 TIME EXPIRED', 'The 3-minute quest timer reached zero! Please retry Level 1.');
+            }
+        }
     }, 100);
 
-    // Initialize Camera / WebCam directly (requestCameraAccess already starts MediaPipe gesture recognition)
+    // Initialize Camera / WebCam directly
     requestCameraAccess();
 }
 
@@ -1099,32 +1127,6 @@ async function submitFinalGestureCode() {
     let finishRank = 1;
     let isQualified = true;
 
-    if (roomData) {
-        roomData.level1FinishCount = (roomData.level1FinishCount || 0) + 1;
-        finishRank = roomData.level1FinishCount;
-        isQualified = finishRank <= 3;
-
-        const curPid = playerInfo.playerId || ('player-' + (playerInfo.playerSlot || 1));
-        const pObj = roomData.players.find(p => p.id === curPid || p.slot === playerInfo.playerSlot);
-        if (pObj) {
-            pObj.level1Time = GAME_STATE.level1.timer || 0;
-            pObj.level1Status = isQualified ? 'QUALIFIED' : 'ELIMINATED';
-        }
-
-        try {
-            const cleanRoom = JSON.parse(JSON.stringify(roomData));
-            localStorage.setItem('vt_room_' + roomData.roomCode, JSON.stringify(cleanRoom));
-            localStorage.setItem('vt_current_room', JSON.stringify(cleanRoom));
-            const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vt_room_channel') : null;
-            if (bc) bc.postMessage(cleanRoom);
-
-            const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
-            if (fs && roomData.roomCode) {
-                fs.collection('vt_rooms').doc(roomData.roomCode.trim().toUpperCase()).set(cleanRoom, { merge: true }).catch(() => {});
-            }
-        } catch(e) {}
-    }
-
     onLevel1Complete({ accepted: true, qualified: isQualified, rank: finishRank });
 }
 
@@ -1134,15 +1136,11 @@ function onLevel1Complete(res) {
     const qualifyBanner = document.getElementById('lvl1-qualify-banner');
     const eliminateBanner = document.getElementById('lvl1-eliminated-banner');
 
-    if (res.qualified) {
-        if (qualifyBanner) qualifyBanner.style.display = 'flex';
-        showAlert('success', 'LEVEL 1 QUALIFIED',
-            `Rank #${res.rank} — Top 3 finish! You advance to Level 2: The Lost Velocity City.`);
-    } else {
-        if (eliminateBanner) eliminateBanner.style.display = 'flex';
-        showAlert('error', 'ELIMINATED IN LEVEL 1',
-            `You finished at rank #${res.rank}. Only the top 3 players advance. Tournament over.`);
-    }
+    if (qualifyBanner) qualifyBanner.style.display = 'flex';
+    if (eliminateBanner) eliminateBanner.style.display = 'none';
+
+    showAlert('success', 'LEVEL 1 QUALIFIED',
+        'Level 1 completed! You advance to Level 2: The Lost Velocity City.');
 }
 
 function initWebcamScanner() {
@@ -1973,14 +1971,41 @@ function startLevel1() {
     GAME_STATE.startTime = Date.now();
 
     if (GAME_STATE.level1.interval) clearInterval(GAME_STATE.level1.interval);
+    
+    let campaignStart = parseInt(localStorage.getItem('tc_campaign_start_time') || '0', 10);
+    if (!campaignStart || isNaN(campaignStart)) {
+        campaignStart = Date.now();
+        localStorage.setItem('tc_campaign_start_time', campaignStart.toString());
+    }
+
+    GAME_STATE.level1.remainingSeconds = 180.0;
+
     GAME_STATE.level1.interval = setInterval(() => {
-        GAME_STATE.level1.timer += 0.1;
-        const t = GAME_STATE.level1.timer;
-        const m = String(Math.floor(t / 60)).padStart(2, '0');
-        const s = String(Math.floor(t % 60)).padStart(2, '0');
-        const ms = Math.floor((t * 10) % 10);
+        GAME_STATE.level1.remainingSeconds = Math.max(0, GAME_STATE.level1.remainingSeconds - 0.1);
+        const rem = GAME_STATE.level1.remainingSeconds;
+        const m = String(Math.floor(rem / 60)).padStart(2, '0');
+        const s = String(Math.floor(rem % 60)).padStart(2, '0');
+        const ms = String(Math.floor((rem * 10) % 10));
+        
         const timerEl = document.getElementById('lvl1-timer');
         if (timerEl) timerEl.textContent = `${m}:${s}.${ms}`;
+
+        // Total Campaign Timer
+        const totSec = Math.floor((Date.now() - campaignStart) / 1000);
+        const totM = String(Math.floor(totSec / 60)).padStart(2, '0');
+        const totS = String(Math.floor(totSec % 60)).padStart(2, '0');
+        const totTimerEl = document.getElementById('total-campaign-timer');
+        if (totTimerEl) totTimerEl.textContent = `${totM}:${totS}`;
+
+        if (rem <= 0) {
+            clearInterval(GAME_STATE.level1.interval);
+            const failBanner = document.getElementById('lvl1-eliminated-banner');
+            if (failBanner) failBanner.style.display = 'flex';
+            if (typeof AUDIO !== 'undefined' && AUDIO.sfxError) AUDIO.sfxError();
+            if (typeof showAlert === 'function') {
+                showAlert('error', 'LEVEL 1 TIME EXPIRED', 'The 3-minute quest timer reached zero! Please retry Level 1.');
+            }
+        }
     }, 100);
 
     // Auto-start camera scanner on Level 1

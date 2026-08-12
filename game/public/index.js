@@ -763,8 +763,6 @@ async function handleFindTeam() {
 }
 window.handleFindTeam = handleFindTeam;
 
-let sessionPlayer = null;
-
 function getLocalPlayer() {
     if (sessionPlayer) return sessionPlayer;
     try {
@@ -810,148 +808,62 @@ async function saveAgentToFirebase(p) {
     }
 }
 
-async function handleCreateTeamSubmit() {
-    const nameInput = document.getElementById('createHostName');
-    const phoneInput = document.getElementById('createPhone');
-    const deptInput = document.getElementById('createDept');
-    const yearInput = document.getElementById('createYear');
-    const agreeInput = document.getElementById('createAgree');
+function startLevel1() {
+    window.location.href = '/level1.html';
+}
+window.startLevel1 = startLevel1;
 
-    const n = nameInput ? nameInput.value.trim() : '';
-    const phone = phoneInput ? phoneInput.value.trim() : '';
-    const d = deptInput ? deptInput.value : '';
-    const y = yearInput ? yearInput.value : '';
+document.getElementById('btn-auth-proceed')?.addEventListener('click', () => {
+    startLevel1();
+});
 
-    if (!n || n.length < 2) {
-        showAlert('error', 'NAME REQUIRED', 'Please enter your full name (at least 2 characters).');
-        return false;
-    }
-    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
-        showAlert('error', 'INVALID PHONE', 'Please enter a valid 10-digit Indian phone number.');
-        return false;
-    }
-    if (!d) {
-        showAlert('error', 'SELECT DEPARTMENT', 'Please select your department.');
-        return false;
-    }
-    if (!y) {
-        showAlert('error', 'SELECT YEAR', 'Please select your academic year.');
-        return false;
-    }
+function handleSinglePlayerLoginSubmit() {
+    const nameInput = document.getElementById('playerName');
+    const phoneInput = document.getElementById('phone');
+    const deptInput = document.getElementById('department');
+    const yearInput = document.getElementById('year');
+
+    let n = nameInput ? nameInput.value.trim() : '';
+    let phone = phoneInput ? phoneInput.value.trim() : '';
+    let d = deptInput ? deptInput.value : '';
+    let y = yearInput ? yearInput.value : '';
+
+    if (!n || n.length < 2) n = 'Agent Alpha';
+    if (!phone || !/^[6-9]\d{9}$/.test(phone)) phone = '9876543210';
+    if (!d) d = 'CSE (AI & ML)';
+    if (!y) y = 'BE';
 
     if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
 
     const agId = 'AG-' + Math.floor(1000 + Math.random() * 9000);
     const token = 'agent-' + Date.now();
-    const targetCode = 'VT-' + Math.floor(1000 + Math.random() * 9000);
 
-    activeRoom = {
-        roomCode: targetCode,
-        status: 'LOBBY',
-        players: [
-            { id: 'player-1', slot: 1, name: n, dept: d, isHost: true, level1Time: null, level1Status: 'PENDING', level2Time: null, level2Status: 'PENDING', level3BossTime: null }
-        ],
-        level1FinishCount: 0,
-        level2FinishCount: 0,
-        winnerName: null
-    };
-
-    sessionPlayer = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, roomCode: targetCode, playerSlot: 1, playerId: 'player-1', isHost: true };
+    sessionPlayer = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, playerId: 'player-1' };
     try {
         localStorage.setItem('tc_player', JSON.stringify(sessionPlayer));
         sessionStorage.setItem('tc_player_session', JSON.stringify(sessionPlayer));
         localStorage.setItem('tc_token', token);
+        localStorage.setItem('tc_campaign_start_time', Date.now().toString());
     } catch(e) {}
     if (typeof API !== 'undefined') API.token = token;
 
-    saveAndBroadcastRoom(activeRoom);
     saveAgentToFirebase(sessionPlayer);
-    subscribeToRoom(targetCode);
 
-    updateLobbySlots(activeRoom);
-    openModal('modal-room-lobby');
+    startLevel1();
     return false;
+}
+window.handleSinglePlayerLoginSubmit = handleSinglePlayerLoginSubmit;
+
+async function handleCreateTeamSubmit() {
+    return handleSinglePlayerLoginSubmit();
 }
 window.handleCreateTeamSubmit = handleCreateTeamSubmit;
 
 async function handleJoinTeamSubmit() {
-    const inputCode = document.getElementById('joinRoomCode');
-    const nameInput = document.getElementById('joinPlayerName');
-    const phoneInput = document.getElementById('joinPhone');
-    const deptInput = document.getElementById('joinDept');
-    const yearInput = document.getElementById('joinYear');
-    const agreeInput = document.getElementById('joinAgree');
-
-    const targetCode = normalizeRoomCode(inputCode ? inputCode.value : '');
-    const n = nameInput ? nameInput.value.trim() : '';
-    const phone = phoneInput ? phoneInput.value.trim() : '';
-    const d = deptInput ? deptInput.value : '';
-    const y = yearInput ? yearInput.value : '';
-
-    if (!targetCode) {
-        showAlert('error', 'INVALID CODE', 'Please enter a valid Team Code.');
-        return false;
-    }
-    if (!n || n.length < 2) {
-        showAlert('error', 'NAME REQUIRED', 'Please enter your full name (at least 2 characters).');
-        return false;
-    }
-    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
-        showAlert('error', 'INVALID PHONE', 'Please enter a valid 10-digit Indian phone number.');
-        return false;
-    }
-    if (!d) {
-        showAlert('error', 'SELECT DEPARTMENT', 'Please select your department.');
-        return false;
-    }
-    if (!y) {
-        showAlert('error', 'SELECT YEAR', 'Please select your academic year.');
-        return false;
-    }
-
-    let roomData = await fetchRoomData(targetCode);
-    if (!roomData) {
-        showAlert('error', 'TEAM NOT FOUND', `Team code ${targetCode} was not found. Please verify.`);
-        return false;
-    }
-
-    let pSlot = 1;
-    const existingP = (roomData.players || []).find(p => p.name.toUpperCase() === n.toUpperCase());
-    if (existingP) {
-        pSlot = existingP.slot;
-    } else {
-        if ((roomData.players || []).length >= 4) {
-            showAlert('error', 'TEAM FULL', `This team already has 4 players registered.`);
-            return false;
-        }
-        pSlot = (roomData.players || []).length + 1;
-        const newP = { id: 'player-' + pSlot, slot: pSlot, name: n, dept: d, isHost: false, level1Time: null, level1Status: 'PENDING', level2Time: null, level2Status: 'PENDING', level3BossTime: null };
-        roomData.players.push(newP);
-    }
-
-    activeRoom = roomData;
-
-    const agId = 'AG-' + Math.floor(1000 + Math.random() * 9000);
-    const token = 'agent-' + Date.now();
-    sessionPlayer = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, roomCode: targetCode, playerSlot: pSlot, playerId: 'player-' + pSlot, isHost: false };
-    try {
-        localStorage.setItem('tc_player', JSON.stringify(sessionPlayer));
-        sessionStorage.setItem('tc_player_session', JSON.stringify(sessionPlayer));
-        localStorage.setItem('tc_token', token);
-    } catch(e) {}
-    if (typeof API !== 'undefined') API.token = token;
-
-    if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
-
-    saveAndBroadcastRoom(activeRoom);
-    saveAgentToFirebase(sessionPlayer);
-    subscribeToRoom(targetCode);
-
-    updateLobbySlots(activeRoom);
-    openModal('modal-room-lobby');
-    return false;
+    return handleSinglePlayerLoginSubmit();
 }
 window.handleJoinTeamSubmit = handleJoinTeamSubmit;
+
 
 
 

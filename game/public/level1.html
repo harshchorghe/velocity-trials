@@ -60,9 +60,15 @@
     <div class="stage-header">
       <div class="stage-badge">LEVEL 1</div>
       <h2 class="stage-title">THE PHYSICAL QUEST & GESTURE RECOGNITION</h2>
-      <div class="stage-timer-box">
-        <span class="timer-label">QUEST TIMER:</span>
-        <span id="lvl1-timer" class="timer-val">00:00.0</span>
+      <div class="stage-timer-box" style="display:flex; gap:16px; align-items:center;">
+        <div>
+          <span class="timer-label">QUEST TIMER (3 MIN):</span>
+          <span id="lvl1-timer" class="timer-val" style="color:#fbbf24;">03:00.0</span>
+        </div>
+        <div style="border-left:1px solid rgba(255,255,255,0.2); padding-left:16px;">
+          <span class="timer-label">TOTAL CAMPAIGN TIME:</span>
+          <span id="total-campaign-timer" class="timer-val" style="color:#00f0ff;">00:00</span>
+        </div>
       </div>
     </div>
 
@@ -132,18 +138,18 @@
           <div class="complete-box">
             <div class="c-icon">🎉</div>
             <div class="c-title" id="lvl1-qualify-title">LEVEL 1 QUALIFIED!</div>
-            <div class="c-desc" id="lvl1-qualify-desc">You completed Level 1 in the top 3 faster players! You have unlocked access to Level 2 — The Lost Velocity City!</div>
+            <div class="c-desc" id="lvl1-qualify-desc">You completed Level 1 successfully! You have unlocked access to Level 2 — The Lost Velocity City!</div>
             <button class="start-btn" onclick="proceedToLevel2()">ENTER THE LOST VELOCITY CITY ›</button>
           </div>
         </div>
 
-        <!-- ELIMINATION BANNER -->
+        <!-- LEVEL 1 TIMEOUT / FAILURE BANNER -->
         <div class="level-complete-overlay" id="lvl1-eliminated-banner" style="display:none; background:rgba(15, 23, 42, 0.95);">
           <div class="complete-box" style="border:2px solid #ef4444; box-shadow:0 0 40px rgba(239, 68, 68, 0.5);">
-            <div class="c-icon" style="font-size:54px;">💀</div>
-            <div class="c-title" style="color:#ef4444;">LEVEL 1 ELIMINATED</div>
-            <div class="c-desc" style="color:#fca5a5;">3 players finished faster than you. You have been eliminated from the tournament.</div>
-            <button class="start-btn" style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="window.location.href='./index.html'">BACK TO MAIN LOBBY ›</button>
+            <div class="c-icon" style="font-size:54px;">⏰</div>
+            <div class="c-title" style="color:#ef4444;">LEVEL 1 TIME EXPIRED</div>
+            <div class="c-desc" style="color:#fca5a5;">The 3-minute gesture quest timer reached zero before the correct code was decoded. Mission Failed!</div>
+            <button class="start-btn" style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="window.location.reload()">🔄 RETRY LEVEL 1 ›</button>
           </div>
         </div>
       </div>

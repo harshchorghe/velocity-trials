@@ -125,6 +125,22 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeLevel]);
 
+  const [campaignElapsedSec, setCampaignElapsedSec] = useState<number>(0);
+
+  useEffect(() => {
+    const updateCampaignTime = () => {
+      if (typeof window !== "undefined") {
+        const start = parseInt(localStorage.getItem("tc_campaign_start_time") || "0", 10);
+        if (start > 0) {
+          setCampaignElapsedSec(Math.floor((Date.now() - start) / 1000));
+        }
+      }
+    };
+    updateCampaignTime();
+    const interval = setInterval(updateCampaignTime, 500);
+    return () => clearInterval(interval);
+  }, []);
+
   const activePlayer = gameState.players[activeControlledId] || gameState.players["player-1"];
 
   // Automatically transition to Level 3 upon completing Level 2
@@ -233,37 +249,20 @@ export default function Home() {
               <h1 style={{ margin: 0, fontSize: "14px", fontWeight: 700, letterSpacing: "0.5px" }}>
                 {activeLevel === 2 ? "Level 2: City & Stones" : "Level 3: Astra Boss Arena"}
               </h1>
-              <div style={{ display: "flex", gap: "6px" }}>
-                {activeLevel === 3 && (
-                  <span
-                    style={{
-                      background: "rgba(239, 68, 68, 0.2)",
-                      color: "#ef4444",
-                      border: "1px solid rgba(239, 68, 68, 0.4)",
-                      padding: "2px 6px",
-                      borderRadius: "10px",
-                      fontSize: "10px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    ⚔️ BOSS FIGHT
-                  </span>
-                )}
-                {activeLevel === 2 && (
-                  <span
-                    style={{
-                      background: "rgba(16, 185, 129, 0.2)",
-                      color: "#10b981",
-                      border: "1px solid rgba(16, 185, 129, 0.4)",
-                      padding: "2px 6px",
-                      borderRadius: "10px",
-                      fontSize: "10px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    🏆 QUALIFIED: {gameState.qualifiedPlayerIds.length}/2
-                  </span>
-                )}
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    background: "rgba(0, 240, 255, 0.2)",
+                    color: "#00f0ff",
+                    border: "1px solid rgba(0, 240, 255, 0.4)",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                  }}
+                >
+                  ⏱️ TOTAL: {formatTime(campaignElapsedSec)}
+                </span>
                 <span
                   style={{
                     background: "rgba(56, 189, 248, 0.2)",
@@ -461,17 +460,39 @@ export default function Home() {
 
             <div
               style={{
-                background: "rgba(30, 41, 59, 0.8)",
-                border: "1px solid rgba(34, 197, 94, 0.4)",
-                borderRadius: "12px",
-                padding: "12px 28px",
-                fontSize: "15px",
-                fontWeight: 800,
-                color: "#38bdf8",
+                display: "flex",
+                gap: "12px",
                 margin: "4px 0",
+                flexWrap: "wrap",
+                justifyContent: "center",
               }}
             >
-              ⏱️ TIME TAKEN: <span style={{ color: "#ffffff", fontSize: "18px", marginLeft: "6px" }}>{formatTime(l3ElapsedTimeSec)}</span>
+              <div
+                style={{
+                  background: "rgba(30, 41, 59, 0.8)",
+                  border: "1px solid rgba(34, 197, 94, 0.4)",
+                  borderRadius: "12px",
+                  padding: "10px 18px",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: "#38bdf8",
+                }}
+              >
+                ⏱️ BOSS TIME: <span style={{ color: "#ffffff", fontSize: "15px", marginLeft: "6px" }}>{formatTime(l3ElapsedTimeSec)}</span>
+              </div>
+              <div
+                style={{
+                  background: "rgba(30, 41, 59, 0.8)",
+                  border: "1px solid rgba(0, 240, 255, 0.4)",
+                  borderRadius: "12px",
+                  padding: "10px 18px",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: "#00f0ff",
+                }}
+              >
+                ⏱️ TOTAL CAMPAIGN TIME: <span style={{ color: "#ffffff", fontSize: "15px", marginLeft: "6px" }}>{formatTime(campaignElapsedSec)}</span>
+              </div>
             </div>
 
             <div style={{ fontSize: "14px", fontWeight: 900, color: "#22c55e", letterSpacing: "1.5px", marginTop: "4px" }}>
@@ -669,6 +690,7 @@ export default function Home() {
           player={activePlayer}
           videoUrl={gameState.completionVideoUrl}
           onReset={() => gameState.resetPlayer()}
+          onProceedToLevel3={() => setActiveLevel(3)}
         />
       )}
 
