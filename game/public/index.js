@@ -782,10 +782,6 @@ async function handleCreateTeamSubmit() {
         showAlert('error', 'SELECT YEAR', 'Please select your academic year.');
         return false;
     }
-    if (agreeInput && !agreeInput.checked) {
-        showAlert('error', 'RULES AGREEMENT', 'Please agree to the TechChase Rules and Regulations.');
-        return false;
-    }
 
     if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
 
@@ -854,10 +850,6 @@ async function handleJoinTeamSubmit() {
     }
     if (!y) {
         showAlert('error', 'SELECT YEAR', 'Please select your academic year.');
-        return false;
-    }
-    if (agreeInput && !agreeInput.checked) {
-        showAlert('error', 'RULES AGREEMENT', 'Please agree to the TechChase Rules and Regulations.');
         return false;
     }
 
