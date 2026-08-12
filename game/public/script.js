@@ -800,18 +800,8 @@ const GAME_STATE = {
             { x: 800, y: 220, collected: false },
             { x: 500, y: 450, collected: false }
         ],
-        hazardsList: [
-            { type: 'robot', x: 250, y: 350, w: 40, h: 40, dir: 1, range: [200, 450] },
-            { type: 'robot', x: 700, y: 120, w: 40, h: 40, dir: -1, range: [600, 850] },
-            { type: 'laser', x: 420, y: 100, w: 10, h: 180, active: true },
-            { type: 'virus', x: 600, y: 380, radius: 45 },
-            { type: 'oil', x: 180, y: 200, w: 70, h: 45 }
-        ],
-        coPlayers: [
-            { name: 'ARIA-7', x: 400, y: 200, vx: 1.5, vy: 0.8, color: '#ff00ff' },
-            { name: 'NEXUS', x: 750, y: 300, vx: -1.2, vy: 1.1, color: '#39ff14' },
-            { name: 'PHANTOM', x: 200, y: 100, vx: 1.8, vy: -0.9, color: '#ffd700' }
-        ],
+        hazardsList: [],
+        coPlayers: [],
         animFrame: null
     },
     level3: {
@@ -1611,17 +1601,7 @@ function runLevel2Loop(canvas, ctx) {
 
         // 2. Hazards
         st.hazardsList.forEach(h => {
-            if (h.type === 'robot') {
-                h.x += h.dir * 2;
-                if (h.x < h.range[0] || h.x > h.range[1]) h.dir *= -1;
-
-                ctx.fillStyle = '#ff3366';
-                ctx.shadowBlur = 10; ctx.shadowColor = '#ff3366';
-                ctx.fillRect(h.x, h.y, h.w, h.h);
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = '#fff';
-                ctx.fillText('🤖 ROBOT', h.x - 4, h.y - 6);
-            } else if (h.type === 'laser') {
+            if (h.type === 'laser') {
                 ctx.strokeStyle = 'rgba(255, 0, 85, 0.85)';
                 ctx.lineWidth = 6;
                 ctx.shadowBlur = 14; ctx.shadowColor = '#ff0055';

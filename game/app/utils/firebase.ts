@@ -59,7 +59,7 @@ export async function saveAgentToFirebase(agentData: Partial<AgentData>): Promis
       const cached = JSON.parse(localStorage.getItem("tc_agents") || "[]");
       cached.push({ ...payload, id: docRef.id });
       localStorage.setItem("tc_agents", JSON.stringify(cached));
-    } catch (_) {}
+    } catch (_) { }
 
     return docRef.id;
   } catch (err) {
@@ -115,6 +115,6 @@ export function onAgentsUpdate(callback: (agents: AgentData[]) => void) {
     );
   } catch (err) {
     console.error("[Firebase] Listener setup error:", err);
-    return () => {};
+    return () => { };
   }
 }

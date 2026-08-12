@@ -165,9 +165,6 @@ export function Player({ id }: PlayerProps) {
                 </span>
               ) : (
                 <>
-                  <span style={{ fontSize: "8px", color: playerData.lives > 0 ? "#ef4444" : "#64748b" }}>
-                    {playerData.lives > 0 ? `❤️ x${playerData.lives}` : "💀 KO"}
-                  </span>
                   <span
                     style={{
                       background: "rgba(56, 189, 248, 0.2)",
