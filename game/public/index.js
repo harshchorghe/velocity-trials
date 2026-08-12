@@ -728,6 +728,32 @@ function getLocalPlayer() {
     return null;
 }
 
+async function saveAgentToFirebase(p) {
+    const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
+    if (!fs || !p) return;
+    try {
+        const colName = window.AGENTS_COL || 'tc_agents';
+        const docRef = await fs.collection(colName).add({
+            name: p.name,
+            roll: p.roll || p.playerId,
+            dept: p.dept,
+            year: p.year,
+            phone: p.phone,
+            roomCode: p.roomCode,
+            playerSlot: p.playerSlot,
+            isHost: !!p.isHost,
+            score: 0,
+            createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+        });
+        if (docRef && docRef.id) {
+            console.log('[Firebase] Registered agent in tc_agents doc ID:', docRef.id);
+            try { localStorage.setItem('tc_firebase_doc_id', docRef.id); } catch(e) {}
+        }
+    } catch(e) {
+        console.warn('[Firebase] Agent registration note:', e);
+    }
+}
+
 async function handleCreateTeamSubmit() {
     const nameInput = document.getElementById('createHostName');
     const phoneInput = document.getElementById('createPhone');
@@ -778,9 +804,6 @@ async function handleCreateTeamSubmit() {
         winnerName: null
     };
 
-    saveAndBroadcastRoom(activeRoom);
-    subscribeToRoom(targetCode);
-
     sessionPlayer = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, roomCode: targetCode, playerSlot: 1, playerId: 'player-1', isHost: true };
     try {
         localStorage.setItem('tc_player', JSON.stringify(sessionPlayer));
@@ -788,6 +811,10 @@ async function handleCreateTeamSubmit() {
         localStorage.setItem('tc_token', token);
     } catch(e) {}
     if (typeof API !== 'undefined') API.token = token;
+
+    saveAndBroadcastRoom(activeRoom);
+    saveAgentToFirebase(sessionPlayer);
+    subscribeToRoom(targetCode);
 
     updateLobbySlots(activeRoom);
     openModal('modal-room-lobby');
@@ -855,8 +882,6 @@ async function handleJoinTeamSubmit() {
     }
 
     activeRoom = roomData;
-    saveAndBroadcastRoom(activeRoom);
-    subscribeToRoom(targetCode);
 
     const agId = 'AG-' + Math.floor(1000 + Math.random() * 9000);
     const token = 'agent-' + Date.now();
@@ -870,13 +895,35 @@ async function handleJoinTeamSubmit() {
 
     if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
 
+    saveAndBroadcastRoom(activeRoom);
+    saveAgentToFirebase(sessionPlayer);
+    subscribeToRoom(targetCode);
+
     updateLobbySlots(activeRoom);
     openModal('modal-room-lobby');
     return false;
 }
 window.handleJoinTeamSubmit = handleJoinTeamSubmit;
 
-function startTournamentGame() {
+async function saveAndBroadcastRoom(room) {
+    if (!room || !room.roomCode) return;
+    const norm = normalizeRoomCode(room.roomCode);
+    room.roomCode = norm;
+    try {
+        localStorage.setItem('vt_room_' + norm, JSON.stringify(room));
+        localStorage.setItem('vt_current_room', JSON.stringify(room));
+        if (roomSyncChannel) roomSyncChannel.postMessage(room);
+
+        const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
+        if (fs) {
+            await fs.collection('vt_rooms').doc(norm).set(room, { merge: true });
+        }
+    } catch (e) {
+        console.warn('[saveAndBroadcastRoom] error:', e);
+    }
+}
+
+async function startTournamentGame() {
     let room = activeRoom;
     if (!room) {
         try {
@@ -894,7 +941,7 @@ function startTournamentGame() {
     }
 
     room.status = 'LEVEL1';
-    saveAndBroadcastRoom(room);
+    await saveAndBroadcastRoom(room);
 
     if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
 
@@ -903,6 +950,11 @@ function startTournamentGame() {
 window.startTournamentGame = startTournamentGame;
 
 function initRoomUI() {
+    const curP = getLocalPlayer();
+    if (curP && curP.roomCode) {
+        subscribeToRoom(curP.roomCode);
+    }
+
     document.getElementById('btn-copy-code')?.addEventListener('click', () => {
         if (activeRoom && activeRoom.roomCode) {
             navigator.clipboard?.writeText(activeRoom.roomCode);
@@ -910,21 +962,21 @@ function initRoomUI() {
         }
     });
 
-    document.getElementById('btn-start-tournament')?.addEventListener('click', (e) => {
+    document.getElementById('btn-start-tournament')?.addEventListener('click', async (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        startTournamentGame();
+        await startTournamentGame();
     });
 
-    document.getElementById('btn-force-start')?.addEventListener('click', (e) => {
+    document.getElementById('btn-force-start')?.addEventListener('click', async (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        startTournamentGame();
+        await startTournamentGame();
     });
 
     if (roomSyncChannel) {
         roomSyncChannel.onmessage = (e) => {
             if (e.data && e.data.roomCode) {
-                const curP = getLocalPlayer();
-                const roomCodeMatch = curP && curP.roomCode && normalizeRoomCode(e.data.roomCode) === normalizeRoomCode(curP.roomCode);
+                const p = getLocalPlayer();
+                const roomCodeMatch = p && p.roomCode && normalizeRoomCode(e.data.roomCode) === normalizeRoomCode(p.roomCode);
                 if (roomCodeMatch || (activeRoom && e.data.roomCode === activeRoom.roomCode)) {
                     activeRoom = e.data;
                     updateLobbySlots(activeRoom);
@@ -938,8 +990,8 @@ function initRoomUI() {
 
     // Polling fallback
     setInterval(async () => {
-        const curP = getLocalPlayer();
-        const codeToPoll = (activeRoom && activeRoom.roomCode) || (curP && curP.roomCode);
+        const p = getLocalPlayer();
+        const codeToPoll = (activeRoom && activeRoom.roomCode) || (p && p.roomCode);
         if (codeToPoll) {
             const fresh = await fetchRoomData(codeToPoll);
             if (fresh) {
@@ -950,31 +1002,7 @@ function initRoomUI() {
                 }
             }
         }
-    }, 1200);
-}
-
-function getStoredRoom(code) {
-    const norm = normalizeRoomCode(code);
-    try {
-        const data = localStorage.getItem('vt_room_' + norm);
-        return data ? JSON.parse(data) : null;
-    } catch (e) { return null; }
-}
-
-function saveAndBroadcastRoom(room) {
-    if (!room || !room.roomCode) return;
-    const norm = normalizeRoomCode(room.roomCode);
-    room.roomCode = norm;
-    try {
-        localStorage.setItem('vt_room_' + norm, JSON.stringify(room));
-        localStorage.setItem('vt_current_room', JSON.stringify(room));
-        if (roomSyncChannel) roomSyncChannel.postMessage(room);
-
-        const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
-        if (fs) {
-            fs.collection('vt_rooms').doc(norm).set(room, { merge: true }).catch(() => {});
-        }
-    } catch (e) {}
+    }, 1000);
 }
 
 function updateLobbySlots(room) {
