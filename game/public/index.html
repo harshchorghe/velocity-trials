@@ -203,9 +203,9 @@
       </div>
 
       <!-- HOST CONTROLS CONTAINER -->
-      <div id="host-controls" style="text-align:center;">
-        <button class="start-btn" id="btn-start-tournament" style="width:100%;" disabled>WAITING FOR ALL 4 PLAYERS TO JOIN (1/4)...</button>
-        <button type="button" id="btn-force-start" style="display:none; margin-top:8px; background:rgba(251,191,36,0.15); border:1px solid #fbbf24; color:#fbbf24; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:11px; font-family:'Orbitron', sans-serif; width:100%;">⚡ HOST OVERRIDE: START GAME NOW WITH CURRENT PLAYERS</button>
+      <div id="host-controls" style="text-align:center; position:relative; z-index:100;">
+        <button type="button" class="start-btn" id="btn-start-tournament" onclick="startTournamentGame()" style="width:100%; position:relative; z-index:100; pointer-events:auto;" disabled>WAITING FOR ALL 4 PLAYERS TO JOIN (1/4)...</button>
+        <button type="button" id="btn-force-start" onclick="startTournamentGame()" style="display:none; margin-top:8px; background:rgba(251,191,36,0.15); border:1px solid #fbbf24; color:#fbbf24; padding:8px 14px; border-radius:4px; cursor:pointer; font-size:11px; font-family:'Orbitron', sans-serif; width:100%; position:relative; z-index:100; pointer-events:auto;">⚡ HOST OVERRIDE: START GAME NOW WITH CURRENT PLAYERS</button>
       </div>
 
       <!-- MEMBER WAITING CONTAINER -->

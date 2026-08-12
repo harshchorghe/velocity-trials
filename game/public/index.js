@@ -876,6 +876,32 @@ async function handleJoinTeamSubmit() {
 }
 window.handleJoinTeamSubmit = handleJoinTeamSubmit;
 
+function startTournamentGame() {
+    let room = activeRoom;
+    if (!room) {
+        try {
+            const cur = localStorage.getItem('vt_current_room');
+            if (cur) room = JSON.parse(cur);
+        } catch(e) {}
+    }
+    if (!room) {
+        const p = getLocalPlayer() || {};
+        room = {
+            roomCode: p.roomCode || 'VT-8921',
+            status: 'LOBBY',
+            players: [{ id: 'player-1', slot: 1, name: p.name || 'HOST', isHost: true }]
+        };
+    }
+
+    room.status = 'LEVEL1';
+    saveAndBroadcastRoom(room);
+
+    if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
+
+    window.location.href = './level1.html';
+}
+window.startTournamentGame = startTournamentGame;
+
 function initRoomUI() {
     document.getElementById('btn-copy-code')?.addEventListener('click', () => {
         if (activeRoom && activeRoom.roomCode) {
@@ -884,27 +910,27 @@ function initRoomUI() {
         }
     });
 
-    document.getElementById('btn-start-tournament')?.addEventListener('click', () => {
-        if (!activeRoom) return;
-        activeRoom.status = 'LEVEL1';
-        saveAndBroadcastRoom(activeRoom);
-        window.location.href = './level1.html';
+    document.getElementById('btn-start-tournament')?.addEventListener('click', (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        startTournamentGame();
     });
 
-    document.getElementById('btn-force-start')?.addEventListener('click', () => {
-        if (!activeRoom) return;
-        activeRoom.status = 'LEVEL1';
-        saveAndBroadcastRoom(activeRoom);
-        window.location.href = './level1.html';
+    document.getElementById('btn-force-start')?.addEventListener('click', (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        startTournamentGame();
     });
 
     if (roomSyncChannel) {
         roomSyncChannel.onmessage = (e) => {
-            if (e.data && e.data.roomCode && activeRoom && e.data.roomCode === activeRoom.roomCode) {
-                activeRoom = e.data;
-                updateLobbySlots(activeRoom);
-                if (activeRoom.status === 'LEVEL1' && !window.location.pathname.endsWith('level1.html')) {
-                    window.location.href = './level1.html';
+            if (e.data && e.data.roomCode) {
+                const curP = getLocalPlayer();
+                const roomCodeMatch = curP && curP.roomCode && normalizeRoomCode(e.data.roomCode) === normalizeRoomCode(curP.roomCode);
+                if (roomCodeMatch || (activeRoom && e.data.roomCode === activeRoom.roomCode)) {
+                    activeRoom = e.data;
+                    updateLobbySlots(activeRoom);
+                    if (activeRoom.status === 'LEVEL1' && !window.location.pathname.endsWith('level1.html')) {
+                        window.location.href = './level1.html';
+                    }
                 }
             }
         };
@@ -912,8 +938,10 @@ function initRoomUI() {
 
     // Polling fallback
     setInterval(async () => {
-        if (activeRoom && activeRoom.roomCode) {
-            const fresh = await fetchRoomData(activeRoom.roomCode);
+        const curP = getLocalPlayer();
+        const codeToPoll = (activeRoom && activeRoom.roomCode) || (curP && curP.roomCode);
+        if (codeToPoll) {
+            const fresh = await fetchRoomData(codeToPoll);
             if (fresh) {
                 activeRoom = fresh;
                 updateLobbySlots(activeRoom);
