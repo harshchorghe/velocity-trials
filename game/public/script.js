@@ -888,7 +888,8 @@ function startLevel1() {
         document.getElementById('lvl1-timer').textContent = `${m}:${s}.${ms}`;
     }, 100);
 
-    // Initialize Camera / WebCam if accessible
+    // Initialize Camera / WebCam directly
+    requestCameraAccess();
     initWebcamScanner();
 }
 
@@ -947,8 +948,17 @@ async function loadClueBoard() {
         });
         applyClueProgress(solvedCount);
     } catch (err) {
-        showAlert('error', 'CONNECTION LOST',
-            err.status ? err.message : 'Cannot reach mission control. Start the backend and reload.');
+        console.warn("[ClueBoard] Backend offline or unreachable, using client defaults:", err);
+        const defaultClues = [
+            { index: 1, text: "Clue 1: Find secret code 2025 in the arena", solved: false },
+            { index: 2, text: "Clue 2: Use camera gesture pad to submit", solved: false },
+            { index: 3, text: "Clue 3: Complete sequence before time expires", solved: false }
+        ];
+        defaultClues.forEach((c) => {
+            const textEl = document.querySelector(`#clue-card-${c.index} .clue-text`);
+            if (textEl && c.text) textEl.textContent = c.text;
+        });
+        applyClueProgress(GAME_STATE.level1.solvedCount || 0);
     }
 }
 
@@ -1002,12 +1012,8 @@ async function verifyClue(num) {
 }
 
 function inputGestureDigit(digit) {
-    if ((GAME_STATE.level1.solvedCount || 0) < 3) {
-        AUDIO.sfxError();
-        showAlert('error', 'LOCKED', 'Solve all 3 clues before entering the secret gesture code.');
-        return;
-    }
     AUDIO.sfxClick();
+    if (!GAME_STATE.level1.entered) GAME_STATE.level1.entered = [];
     if (GAME_STATE.level1.entered.length < 4) {
         GAME_STATE.level1.entered.push(digit);
         updateGestureSlots();
@@ -1034,24 +1040,50 @@ function updateGestureSlots() {
 }
 
 async function submitFinalGestureCode() {
-    if (GAME_STATE.level1.entered.length < 4) {
+    if (!GAME_STATE.level1.entered || GAME_STATE.level1.entered.length < 4) {
         AUDIO.sfxError();
-        showAlert('error', 'INCOMPLETE GESTURE CODE', 'Please input a full 4-digit gesture sequence.');
+        showAlert('error', 'INCOMPLETE GESTURE CODE', 'Please input a full 4-digit gesture sequence using hand gestures.');
+        return;
+    }
+
+    const enteredStr = GAME_STATE.level1.entered.join('');
+    const targetCode = (typeof window.fetchLevel1TargetCode === 'function') 
+        ? await window.fetchLevel1TargetCode() 
+        : '2025';
+
+    if (enteredStr !== targetCode) {
+        AUDIO.sfxError();
+        showAlert('error', 'INVALID GESTURE CODE', `The code you entered (${enteredStr}) does not match the secret key stored in the database (${targetCode}). Clear code and try again!`);
         return;
     }
 
     AUDIO.sfxSuccess();
-    clearInterval(GAME_STATE.level1.interval);
+    if (GAME_STATE.level1.interval) clearInterval(GAME_STATE.level1.interval);
     
-    // Direct client completion
+    // Update player record in database (Firestore)
     const docId = localStorage.getItem('tc_firebase_doc_id');
-    if (typeof db !== 'undefined' && db && docId) {
+    if (typeof db !== 'undefined' && db) {
         try {
-            await db.collection(AGENTS_COL).doc(docId).update({
-                score: 3000,
-                level1Done: true
-            });
-        } catch (_) {}
+            if (docId) {
+                await db.collection(AGENTS_COL).doc(docId).update({
+                    score: 3000,
+                    level1Done: true,
+                    level1Code: targetCode
+                });
+            } else {
+                const docRef = await db.collection(AGENTS_COL).add({
+                    name: GAME_STATE.player.name || 'Agent',
+                    roll: GAME_STATE.player.roll || '2K26',
+                    score: 3000,
+                    level1Done: true,
+                    level1Code: targetCode,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                localStorage.setItem('tc_firebase_doc_id', docRef.id);
+            }
+        } catch (e) {
+            console.warn('[Database] Completion update note:', e);
+        }
     }
 
     onLevel1Complete({ accepted: true, qualified: true, rank: 1, durationMs: 120000 });
@@ -1072,21 +1104,8 @@ function onLevel1Complete(res) {
 }
 
 function initWebcamScanner() {
-    const video = document.getElementById('webcam-feed');
-    const statusText = document.getElementById('cam-status-text');
-
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                video.srcObject = stream;
-                statusText.textContent = '🎥 CAMERA GESTURE SCANNER: ACTIVE (HAND RECOGNITION ONLINE)';
-                statusText.style.color = '#39ff14';
-            })
-            .catch(() => {
-                statusText.textContent = '🖐️ GESTURE SCANNER: READY (USE TOUCH / MOUSE GESTURE PAD BELOW)';
-            });
-    } else {
-        statusText.textContent = '🖐️ GESTURE SCANNER: READY (USE TOUCH / MOUSE GESTURE PAD BELOW)';
+    if (typeof requestCameraAccess === 'function') {
+        requestCameraAccess();
     }
 }
 
@@ -1116,181 +1135,331 @@ function connectGestureSocket(handlers) {
             else if (msg.type === 'codeResult') handlers.onCodeResult(msg);
         });
     } catch (e) { gestureSocket = null; }
-}let lastDetectedDigit = -1;
+}
+
+let lastDetectedDigit = -1;
 let gestureHoldCounter = 0;
 let gestureCooldown = false;
 
-function countHandFingers(landmarks) {
-    if (!landmarks || landmarks.length < 21) return 0;
+/**
+ * Counts extended fingers on a single hand using reliable relative landmark distance checks.
+ * Uses 3D landmarks (x, y, z) from MediaPipe Hands.
+ * When a finger is extended, fingertip distance to wrist is strictly greater than PIP joint distance to wrist.
+ */
+/**
+ * Evaluates individual finger extension states (extended vs folded) for a single hand landmark array.
+ */
+function getHandFingerState(landmarks) {
+    if (!landmarks || landmarks.length < 21) {
+        return { count: 0, thumb: false, index: false, middle: false, ring: false, pinky: false };
+    }
     const wrist = landmarks[0];
-    const thumbTip = landmarks[4], thumbMcp = landmarks[2];
-    const indexTip = landmarks[8], indexPip = landmarks[6];
-    const middleTip = landmarks[12], middlePip = landmarks[10];
-    const ringTip = landmarks[16], ringPip = landmarks[14];
-    const pinkyTip = landmarks[20], pinkyPip = landmarks[18];
+    const thumbTip = landmarks[4], thumbIp = landmarks[3], thumbMcp = landmarks[2];
+    const indexTip = landmarks[8], indexPip = landmarks[6], indexMcp = landmarks[5];
+    const middleTip = landmarks[12], middlePip = landmarks[10], middleMcp = landmarks[9];
+    const ringTip = landmarks[16], ringPip = landmarks[14], ringMcp = landmarks[13];
+    const pinkyTip = landmarks[20], pinkyPip = landmarks[18], pinkyMcp = landmarks[17];
+
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+
+    // 1. Index finger: tip distance to wrist > PIP distance AND tip distance to MCP > PIP distance to MCP
+    const indexExtended = dist(indexTip, wrist) > dist(indexPip, wrist) * 1.04 &&
+                          dist(indexTip, indexMcp) > dist(indexPip, indexMcp) * 1.15;
+
+    // 2. Middle finger:
+    const middleExtended = dist(middleTip, wrist) > dist(middlePip, wrist) * 1.04 &&
+                           dist(middleTip, middleMcp) > dist(middlePip, middleMcp) * 1.15;
+
+    // 3. Ring finger:
+    const ringExtended = dist(ringTip, wrist) > dist(ringPip, wrist) * 1.04 &&
+                         dist(ringTip, ringMcp) > dist(ringPip, ringMcp) * 1.15;
+
+    // 4. Pinky finger:
+    const pinkyExtended = dist(pinkyTip, wrist) > dist(pinkyPip, wrist) * 1.04 &&
+                          dist(pinkyTip, pinkyMcp) > dist(pinkyPip, pinkyMcp) * 1.15;
+
+    // 5. Thumb finger: extended outwards away from index MCP joint (landmark 5)
+    // When thumb is extended (Open Palm ✋), thumbTip is far from indexMcp compared to thumbMcp / thumbIp.
+    // When thumb is folded across palm (4 fingers 🖐️), thumbTip is pulled inward close to indexMcp.
+    const dThumbTipIndex = dist(thumbTip, indexMcp);
+    const dThumbMcpIndex = dist(thumbMcp, indexMcp);
+    const dThumbIpIndex = dist(thumbIp, indexMcp);
+
+    const thumbExtended = (dThumbTipIndex > dThumbMcpIndex * 1.08) || (dThumbTipIndex > dThumbIpIndex * 1.04);
 
     let count = 0;
-    // Thumb extension check relative to wrist
-    if (Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y) > Math.hypot(thumbMcp.x - wrist.x, thumbMcp.y - wrist.y) * 1.15) {
-        count++;
+    if (thumbExtended) count++;
+    if (indexExtended) count++;
+    if (middleExtended) count++;
+    if (ringExtended) count++;
+    if (pinkyExtended) count++;
+
+    return { count, thumb: thumbExtended, index: indexExtended, middle: middleExtended, ring: ringExtended, pinky: pinkyExtended };
+}
+
+/**
+ * Classifies exact hand gesture according to the Level 1 reference chart:
+ * 0: Fist (✊)
+ * 1: Index (☝️)
+ * 2: Victory (✌️)
+ * 3: Three (🤟)
+ * 4: Four (🖐️ - 4 fingers, thumb tucked)
+ * 5: Open Palm (✋ - All 5 fingers extended)
+ */
+function classifyHandGesture(state) {
+    const { count, thumb, index, middle, ring, pinky } = state;
+    // 0: Fist (all fingers folded)
+    if (!index && !middle && !ring && !pinky && !thumb) return 0;
+    // 1: Index finger only
+    if (index && !middle && !ring && !pinky && !thumb) return 1;
+    // 2: Victory (Index + Middle)
+    if (index && middle && !ring && !pinky && !thumb) return 2;
+    // 3: Three fingers (Index + Middle + Ring) or (Thumb + Index + Pinky)
+    if (index && middle && ring && !pinky && !thumb) return 3;
+    if (thumb && index && pinky && !middle && !ring) return 3;
+    // 4: Four fingers (Index + Middle + Ring + Pinky, thumb folded)
+    if (index && middle && ring && pinky && !thumb) return 4;
+    // 5: Open Palm (Thumb + Index + Middle + Ring + Pinky)
+    if (index && middle && ring && pinky && thumb) return 5;
+    // Fallback: if all 4 main fingers are up, distinguish 4 vs 5 using thumb
+    if (index && middle && ring && pinky) {
+        return thumb ? 5 : 4;
     }
-    // Index, Middle, Ring, Pinky tip above PIP joint
-    if (indexTip.y < indexPip.y) count++;
-    if (middleTip.y < middlePip.y) count++;
-    if (ringTip.y < ringPip.y) count++;
-    if (pinkyTip.y < pinkyPip.y) count++;
 
     return count;
 }
 
 let mediaPipeTrackerInstance = null;
 
+let isScriptCamActive = false;
 async function requestCameraAccess() {
     const video = document.getElementById('webcam-feed');
     const statusText = document.getElementById('cam-status-text');
     const btn = document.getElementById('start-cam-btn');
 
     if (!video) return;
+
+    // If camera is already streaming and active, just ensure gesture loop is running
+    if (video.srcObject && video.srcObject.active && isScriptCamActive) {
+        initGestureRecognition(false);
+        return;
+    }
+
     if (statusText) statusText.textContent = '🎥 REQUESTING CAMERA PERMISSION...';
 
     try {
-        if (!video.srcObject) {
+        if (!video.srcObject || !video.srcObject.active) {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
                 audio: false
             });
             video.srcObject = stream;
         }
-        await video.play();
+        video.style.display = 'block';
+        video.style.opacity = '1';
+        if (video.paused) {
+            await video.play().catch(err => {
+                if (err.name !== 'AbortError') console.warn('[Camera play note]', err);
+            });
+        }
+        isScriptCamActive = true;
         if (statusText) statusText.textContent = '🎥 CAMERA SCANNER: ACTIVE (SHOW HAND GESTURE 0-9)';
         if (btn) btn.style.display = 'none';
 
         initGestureRecognition(false);
     } catch (err) {
+        isScriptCamActive = false;
         console.error('[Camera Permission Error]', err);
         if (statusText) {
             statusText.textContent = '⚠️ CAMERA BLOCKED — PLEASE ALLOW IN BROWSER URL BAR 🔒';
         }
-        alert('Camera Permission Error: Could not access webcam. If blocked, click the camera/lock icon in your browser address bar and set Camera to Allow.');
+        if (btn) btn.style.display = 'block';
     }
 }
 window.requestCameraAccess = requestCameraAccess;
 
 function initGestureRecognition(autoStartStream = true) {
-
     const video = document.getElementById('webcam-feed');
     const overlay = document.getElementById('gesture-overlay-canvas');
     const statusText = document.getElementById('cam-status-text');
     const btn = document.getElementById('start-cam-btn');
     if (!video) return;
 
-    if (autoStartStream && !video.srcObject && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } })
-            .then((stream) => {
-                video.srcObject = stream;
-                video.play();
-                if (statusText) statusText.textContent = '🎥 CAMERA SCANNER: ACTIVE (SHOW HAND GESTURE 0-9)';
-                if (btn) btn.style.display = 'none';
-            })
-            .catch((err) => {
-                console.warn('[Camera] Auto-start prompt skipped or blocked:', err);
-                if (statusText) statusText.textContent = '🎥 CAMERA STANDBY — CLICK BUTTON BELOW TO START SCANNER';
-            });
+    if (typeof Hands === 'undefined') {
+        setTimeout(() => initGestureRecognition(autoStartStream), 300);
+        return;
     }
 
-    if (typeof Hands === 'undefined' || mediaPipeTrackerInstance) return;
+    // Guard: only allow one instance, but let recovery happen if video element is fresh
+    if (mediaPipeTrackerInstance) return;
 
     const octx = overlay ? overlay.getContext('2d') : null;
 
+    // ── MediaPipe Hands setup (supports up to 2 hands for digits 6–9)
     const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
     hands.setOptions({
         maxNumHands: 2,
         modelComplexity: 1,
-        minDetectionConfidence: 0.6,
+        minDetectionConfidence: 0.7,
         minTrackingConfidence: 0.6
     });
+
+    // ── Gesture digit label map (matches the on-screen gesture table)
+    const DIGIT_LABELS = [
+        '✊ FIST (0)',
+        '☝️ ONE FINGER (1)',
+        '✌️ TWO FINGERS (2)',
+        '🤟 THREE FINGERS (3)',
+        '🖐️ FOUR FINGERS (4)',
+        '✋ OPEN PALM (5)',
+        '✋+☝️ SIX (6)',
+        '✋+✌️ SEVEN (7)',
+        '✋+🤟 EIGHT (8)',
+        '✋+🖐️ NINE (9)',
+    ];
+
+    // ── Connection skeleton for drawing hand skeleton on overlay canvas
+    const HAND_CONNECTIONS = [
+        [0,1],[1,2],[2,3],[3,4],       // thumb
+        [0,5],[5,6],[6,7],[7,8],       // index
+        [0,9],[9,10],[10,11],[11,12],  // middle
+        [0,13],[13,14],[14,15],[15,16],// ring
+        [0,17],[17,18],[18,19],[19,20],// pinky
+        [5,9],[9,13],[13,17]           // palm cross-links
+    ];
+
+    const HOLD_FRAMES_REQUIRED = 4; // ~4 video frames ≈ ~250ms hold for quick detection
 
     hands.onResults((results) => {
         const detected = results.multiHandLandmarks || [];
 
+        // ── Resize overlay canvas to match video
+        if (overlay && video.videoWidth && video.videoHeight) {
+            if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
+                overlay.width = video.videoWidth;
+                overlay.height = video.videoHeight;
+            }
+        }
+
+        // ── Draw skeleton + landmarks on overlay canvas
         if (octx && overlay) {
             octx.clearRect(0, 0, overlay.width, overlay.height);
-            octx.fillStyle = '#39ff14';
-            octx.strokeStyle = '#00d4ff';
-            octx.lineWidth = 2;
 
             detected.forEach(hand => {
-                hand.forEach(pt => {
+                // Draw connection lines (skeleton)
+                octx.strokeStyle = 'rgba(0, 212, 255, 0.85)';
+                octx.lineWidth = 2;
+                HAND_CONNECTIONS.forEach(([a, b]) => {
+                    const pa = hand[a], pb = hand[b];
+                    if (!pa || !pb) return;
+                    octx.beginPath();
+                    octx.moveTo((1 - pa.x) * overlay.width, pa.y * overlay.height);
+                    octx.lineTo((1 - pb.x) * overlay.width, pb.y * overlay.height);
+                    octx.stroke();
+                });
+
+                // Draw landmark dots
+                hand.forEach((pt, idx) => {
                     const px = (1 - pt.x) * overlay.width;
                     const py = pt.y * overlay.height;
                     octx.beginPath();
-                    octx.arc(px, py, 3, 0, Math.PI * 2);
+                    octx.arc(px, py, idx === 0 ? 5 : 3, 0, Math.PI * 2);
+                    octx.fillStyle = idx === 0 ? '#ff6b6b' : '#39ff14';
                     octx.fill();
                 });
             });
         }
 
+        // ── No hands visible: reset state
         if (detected.length === 0) {
             gestureHoldCounter = 0;
             lastDetectedDigit = -1;
+            if (!gestureCooldown && statusText) {
+                statusText.textContent = '🎥 CAMERA ACTIVE — SHOW A HAND GESTURE (0–9) TO INPUT A DIGIT';
+            }
             return;
         }
 
-        let totalFingers = 0;
-        detected.forEach(hand => {
-            totalFingers += countHandFingers(hand);
-        });
-
-        const currentDigit = Math.min(Math.max(totalFingers, 0), 9);
+        // ── Classify digits 0–9 matching the Level 1 UI reference chart
+        let currentDigit = 0;
+        if (detected.length === 1) {
+            const st = getHandFingerState(detected[0]);
+            currentDigit = classifyHandGesture(st);
+        } else if (detected.length >= 2) {
+            const st1 = getHandFingerState(detected[0]);
+            const st2 = getHandFingerState(detected[1]);
+            const d1 = classifyHandGesture(st1);
+            const d2 = classifyHandGesture(st2);
+            currentDigit = Math.min(d1 + d2, 9);
+        }
+        currentDigit = Math.min(Math.max(currentDigit, 0), 9);
 
         if (gestureCooldown) return;
 
         if (currentDigit === lastDetectedDigit) {
             gestureHoldCounter++;
-            const pct = Math.min(Math.round((gestureHoldCounter / 10) * 100), 100);
-            if (statusText) {
-                statusText.textContent = `🎥 GESTURE DETECTED: DIGIT ${currentDigit} — HOLD STEADY (${pct}%)`;
+            const pct = Math.min(Math.round((gestureHoldCounter / HOLD_FRAMES_REQUIRED) * 100), 100);
+
+            // Draw progress bar directly on the overlay canvas
+            if (octx && overlay) {
+                const barW = overlay.width * 0.8;
+                const barH = 12;
+                const barX = (overlay.width - barW) / 2;
+                const barY = overlay.height - 22;
+                octx.fillStyle = 'rgba(0,0,0,0.6)';
+                octx.fillRect(barX, barY, barW, barH);
+                octx.fillStyle = pct >= 100 ? '#39ff14' : '#00d4ff';
+                octx.fillRect(barX, barY, barW * (pct / 100), barH);
+                octx.strokeStyle = '#00d4ff';
+                octx.lineWidth = 1;
+                octx.strokeRect(barX, barY, barW, barH);
             }
 
-            if (gestureHoldCounter >= 10) {
+            if (statusText) {
+                statusText.textContent = `🎯 ${DIGIT_LABELS[currentDigit]} — HOLD STEADY ${pct}%`;
+            }
+
+            if (gestureHoldCounter >= HOLD_FRAMES_REQUIRED) {
                 gestureHoldCounter = 0;
                 gestureCooldown = true;
                 inputGestureDigit(currentDigit);
-                if (statusText) statusText.textContent = `✅ CONFIRMED GESTURE DIGIT: ${currentDigit}`;
+                if (statusText) statusText.textContent = `✅ DIGIT ${currentDigit} CONFIRMED — ${DIGIT_LABELS[currentDigit]}`;
 
                 setTimeout(() => {
                     gestureCooldown = false;
                     lastDetectedDigit = -1;
+                    if (statusText) statusText.textContent = '🎥 READY — SHOW NEXT HAND GESTURE';
                 }, 1200);
             }
         } else {
+            // Digit changed — reset accumulator
             lastDetectedDigit = currentDigit;
             gestureHoldCounter = 1;
+            if (statusText && currentDigit >= 0) {
+                statusText.textContent = `👁️ DETECTING: ${DIGIT_LABELS[currentDigit]} — HOLD STEADY...`;
+            }
         }
     });
 
     mediaPipeTrackerInstance = hands;
 
-    if (typeof Camera !== 'undefined') {
-        const camera = new Camera(video, {
-            onFrame: async () => {
-                if (video.readyState >= 2) {
-                    await hands.send({ image: video });
-                }
-            },
-            width: 320,
-            height: 240
-        });
-        camera.start().catch(() => {});
-    } else {
-        setInterval(async () => {
-            if (video.readyState >= 2) {
+    // ── Frame pump: send video frames to MediaPipe
+    let isSendingFrame = false;
+    async function processVideoFrames() {
+        if (video && video.readyState >= 2 && !video.paused && !isSendingFrame) {
+            isSendingFrame = true;
+            try {
                 await hands.send({ image: video });
-            }
-        }, 100);
+            } catch (e) { /* ignore individual frame errors */ }
+            isSendingFrame = false;
+        }
+        requestAnimationFrame(processVideoFrames);
     }
+    requestAnimationFrame(processVideoFrames);
+
+    if (statusText) statusText.textContent = '🎥 CAMERA ACTIVE — SHOW A HAND GESTURE (0–9) TO INPUT A DIGIT';
 }
 window.initGestureRecognition = initGestureRecognition;
 
@@ -1359,8 +1528,13 @@ async function loadLevel2State() {
         const badge = document.getElementById('power-name-text');
         if (badge) badge.textContent = POWER_LABELS[s.power] || s.power;
     } catch (err) {
-        showAlert('error', 'LEVEL 2 LOCKED',
-            err.status ? err.message : 'Cannot reach mission control. Check the backend is running.');
+        console.warn("[Level 2] Backend offline or unreachable, using local state:", err);
+        const st = GAME_STATE.level2;
+        renderLives(st.lives || 3);
+        const crystalEl = document.getElementById('lvl2-crystals');
+        if (crystalEl) crystalEl.textContent = `💎 ${st.crystals || 0} / 3`;
+        const badge = document.getElementById('power-name-text');
+        if (badge) badge.textContent = POWER_LABELS['SPRINT'];
     }
 }
 
@@ -1762,13 +1936,14 @@ function startLevel1() {
         const t = GAME_STATE.level1.timer;
         const m = String(Math.floor(t / 60)).padStart(2, '0');
         const s = String(Math.floor(t % 60)).padStart(2, '0');
-        const ms = String(Math.floor((t * 10) % 10));
+        const ms = Math.floor((t * 10) % 10);
         const timerEl = document.getElementById('lvl1-timer');
         if (timerEl) timerEl.textContent = `${m}:${s}.${ms}`;
     }, 100);
 
-    loadClueBoard();
-    initGestureRecognition();
+    // Auto-start camera scanner on Level 1
+    requestCameraAccess();
+    if (typeof loadClueBoard === 'function') loadClueBoard();
 }
 
 function playGreetingAndProceed(videoSrc, transitionFn) {
@@ -1827,27 +2002,6 @@ function proceedToLevel3() {
 
     // Direct redirect to 3D Next.js Level 3 game
     window.location.href = gameUrl;
-}
-
-    try {
-        const saved = localStorage.getItem('tc_player');
-        if (saved) {
-            const p = JSON.parse(saved);
-            GAME_STATE.player.name = p.name || 'Agent';
-            GAME_STATE.player.dept = p.dept || 'CSE';
-            GAME_STATE.player.roll = p.roll || '2K26';
-        }
-    } catch (e) { }
-
-    const stage2 = document.getElementById('game-stage-2');
-    if (stage2) stage2.style.display = 'none';
-    const stage3 = document.getElementById('game-stage-3');
-    if (stage3) stage3.style.display = 'flex';
-    const wScreen = document.getElementById('weapon-select-screen');
-    if (wScreen) wScreen.style.display = 'block';
-    const bScreen = document.getElementById('boss-arena-screen');
-    if (bScreen) bScreen.style.display = 'none';
-    GAME_STATE.currentLevel = 3;
 }
 
 /** The dashboard is served by the backend, so it lives at the API origin. */
@@ -1963,24 +2117,8 @@ function initMasterpieceVisuals() {
     }
 }
 
-// Enhance Gesture Buttons with Anime.js ripple
-const originalInputGestureDigit = typeof inputGestureDigit === 'function' ? inputGestureDigit : null;
-window.inputGestureDigit = function (digit) {
-    if (typeof anime !== 'undefined' && event && event.currentTarget) {
-        anime({
-            targets: event.currentTarget,
-            scale: [0.9, 1.1, 1],
-            boxShadow: [
-                '0 0 0 rgba(0, 212, 255, 0)',
-                '0 0 30px rgba(0, 212, 255, 0.8)',
-                '0 0 10px rgba(0, 212, 255, 0.2)'
-            ],
-            duration: 600,
-            easing: 'easeOutElastic(1, .5)'
-        });
-    }
-    if (originalInputGestureDigit) originalInputGestureDigit(digit);
-}
+// Gesture pad button helper
+window.inputGestureDigit = inputGestureDigit;
 
 function initEchoTransmission() {
     const textEl = document.getElementById('echo-text');

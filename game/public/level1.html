@@ -17,41 +17,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" crossorigin="anonymous"></script>
   <script>
-    async function requestCameraAccess() {
-      const video = document.getElementById('webcam-feed');
-      const statusText = document.getElementById('cam-status-text');
-      const btn = document.getElementById('start-cam-btn');
-      if (!video) return;
-
-      if (statusText) statusText.textContent = '🎥 REQUESTING CAMERA PERMISSION...';
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-          audio: false
-        });
-        video.srcObject = stream;
-        video.style.display = 'block';
-        video.style.opacity = '1';
-        await video.play();
-        if (statusText) statusText.textContent = '🎥 CAMERA SCANNER: ACTIVE (SHOW HAND GESTURE 0-9)';
-        if (btn) btn.style.display = 'none';
-
-        if (typeof initGestureRecognition === 'function') {
-          initGestureRecognition(false);
-        }
-      } catch (err) {
-        console.error('[Camera Error]', err);
-        if (statusText) statusText.textContent = '⚠️ CAMERA BLOCKED — CHECK BROWSER PERMISSIONS 🔒';
-        alert('Camera Access Error: Could not access webcam. Details: ' + (err.message || err));
-      }
-    }
-    window.requestCameraAccess = requestCameraAccess;
-
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('start-cam-btn');
-      if (btn) btn.addEventListener('click', requestCameraAccess);
-    });
+    // Stub: this will be overridden by script.js once loaded.
+    // Calling requestCameraAccess() before script.js loads would fail silently.
+    // The actual camera start happens in the window.load handler below.
+    window.requestCameraAccess = function() {};
   </script>
 </head>
 
@@ -127,16 +96,15 @@
             style="width:24px; height:24px; vertical-align:middle; margin-right:8px; border-radius:4px;">
           ◈ GESTURE INPUT TERMINAL
         </div>
-        <div class="gesture-sub">Use Hand Gestures (WebCam or Gesture Pad below) to enter the Final Secret Code! Digits
-          6–9 need
-          both hands — e.g. 6 = open palm + one finger.</div>
+        <div class="gesture-sub">Use Hand Gestures in front of your camera to input the Secret Code (2025) stored in the database! Digits
+          6–9 need both hands — e.g. 6 = open palm + one finger.</div>
 
         <!-- CAMERA / GESTURE PREVIEW -->
         <div class="webcam-box">
           <video id="webcam-feed" autoplay playsinline muted></video>
           <canvas id="gesture-overlay-canvas"></canvas>
-          <div class="cam-status" id="cam-status-text">🎥 CAMERA GESTURE SCANNER: STANDBY</div>
-          <button id="start-cam-btn" class="action-btn submit" style="margin-top:8px; width:100%; font-size:13px; padding:10px; cursor:pointer;" onclick="requestCameraAccess()">📷 ENABLE WEBCAM SCANNER</button>
+          <div class="cam-status" id="cam-status-text">🎥 CAMERA GESTURE SCANNER: INITIALIZING...</div>
+          <button id="start-cam-btn" class="action-btn submit" style="margin-top:8px; width:100%; font-size:13px; padding:10px; cursor:pointer; display:none;" onclick="requestCameraAccess()">📷 ENABLE WEBCAM SCANNER</button>
         </div>
 
 
@@ -183,15 +151,18 @@
     <button id="greet-skip" class="start-btn greet-skip-btn">PROCEED TO NEXT MISSION ›</button>
   </div>
 
-  <script src="./script.js?v=3"></script>
+  <script src="./script.js?v=7"></script>
   <script src="./vfx.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      if (typeof initGestureRecognition === 'function') initGestureRecognition();
-    });
-    window.addEventListener('load', () => {
-      if (typeof initGestureRecognition === 'function') initGestureRecognition();
-    });
+    function autoStartCam() {
+      if (typeof requestCameraAccess === 'function') requestCameraAccess();
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(autoStartCam, 100);
+    } else {
+      document.addEventListener('DOMContentLoaded', autoStartCam);
+      window.addEventListener('load', autoStartCam);
+    }
   </script>
 </body>
 

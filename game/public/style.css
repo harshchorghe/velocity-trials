@@ -180,7 +180,7 @@ body {
     background: rgba(0, 0, 0, .4);
     border: 1px solid rgba(255, 255, 255, .15);
     padding: 8px 20px;
-    cursor: none;
+    cursor: pointer;
     transition: color .2s, border-color .2s;
     animation: fadeUp .5s ease 2s both;
 }
@@ -1814,7 +1814,7 @@ select.fi-ctrl.err {
     font-family: 'Orbitron', monospace;
     font-size: 11px;
     letter-spacing: 3.5px;
-    cursor: none;
+    cursor: pointer;
     position: relative;
     overflow: hidden;
     transition: color .22s;
@@ -2078,7 +2078,7 @@ select.fi-ctrl.err {
     background: rgba(2, 10, 30, .85);
     color: var(--c);
     font-size: 15px;
-    cursor: none;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4156,15 +4156,21 @@ select.fi-ctrl.err {
 ══════════════════════════ */
 html,
 body {
-    cursor: none !important;
+    cursor: auto !important;
 }
 
 /* Fallback for elements that override cursor */
 a,
 button,
 input,
-.interactable {
-    cursor: none !important;
+select,
+textarea,
+.interactable,
+.g-btn,
+.action-btn,
+.modal-close,
+.start-btn {
+    cursor: pointer !important;
 }
 
 #vfx-cursor-dot {
