@@ -163,10 +163,19 @@
         <div class="level-complete-overlay" id="lvl1-qualify-banner" style="display:none">
           <div class="complete-box">
             <div class="c-icon">🎉</div>
-            <div class="c-title">LEVEL 1 QUALIFIED!</div>
-            <div class="c-desc">Top performer ranking confirmed. You have unlocked access to Level 2 — The Lost Velocity
-              City!</div>
+            <div class="c-title" id="lvl1-qualify-title">LEVEL 1 QUALIFIED!</div>
+            <div class="c-desc" id="lvl1-qualify-desc">You completed Level 1 in the top 3 faster players! You have unlocked access to Level 2 — The Lost Velocity City!</div>
             <button class="start-btn" onclick="proceedToLevel2()">ENTER THE LOST VELOCITY CITY ›</button>
+          </div>
+        </div>
+
+        <!-- ELIMINATION BANNER -->
+        <div class="level-complete-overlay" id="lvl1-eliminated-banner" style="display:none; background:rgba(15, 23, 42, 0.95);">
+          <div class="complete-box" style="border:2px solid #ef4444; box-shadow:0 0 40px rgba(239, 68, 68, 0.5);">
+            <div class="c-icon" style="font-size:54px;">💀</div>
+            <div class="c-title" style="color:#ef4444;">LEVEL 1 ELIMINATED</div>
+            <div class="c-desc" style="color:#fca5a5;">3 players finished faster than you. You have been eliminated from the tournament.</div>
+            <button class="start-btn" style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="window.location.href='./index.html'">BACK TO MAIN LOBBY ›</button>
           </div>
         </div>
       </div>

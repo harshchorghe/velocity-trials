@@ -1042,32 +1042,58 @@ async function submitFinalGestureCode() {
 
     AUDIO.sfxSuccess();
     clearInterval(GAME_STATE.level1.interval);
-    
-    // Direct client completion
-    const docId = localStorage.getItem('tc_firebase_doc_id');
-    if (typeof db !== 'undefined' && db && docId) {
-        try {
-            await db.collection(AGENTS_COL).doc(docId).update({
-                score: 3000,
-                level1Done: true
-            });
-        } catch (_) {}
+
+    let playerInfo = {};
+    try { playerInfo = JSON.parse(localStorage.getItem('tc_player') || '{}'); } catch(e) {}
+
+    let roomData = null;
+    if (playerInfo.roomCode) {
+        try { roomData = JSON.parse(localStorage.getItem('vt_room_' + playerInfo.roomCode) || 'null'); } catch(e) {}
+    }
+    if (!roomData) {
+        try { roomData = JSON.parse(localStorage.getItem('vt_current_room') || 'null'); } catch(e) {}
     }
 
-    onLevel1Complete({ accepted: true, qualified: true, rank: 1, durationMs: 120000 });
+    let finishRank = 1;
+    let isQualified = true;
+
+    if (roomData) {
+        roomData.level1FinishCount = (roomData.level1FinishCount || 0) + 1;
+        finishRank = roomData.level1FinishCount;
+        isQualified = finishRank <= 3;
+
+        const curPid = playerInfo.playerId || ('player-' + (playerInfo.playerSlot || 1));
+        const pObj = roomData.players.find(p => p.id === curPid || p.slot === playerInfo.playerSlot);
+        if (pObj) {
+            pObj.level1Time = GAME_STATE.level1.elapsedTime || 0;
+            pObj.level1Status = isQualified ? 'QUALIFIED' : 'ELIMINATED';
+        }
+
+        try {
+            localStorage.setItem('vt_room_' + roomData.roomCode, JSON.stringify(roomData));
+            localStorage.setItem('vt_current_room', JSON.stringify(roomData));
+            const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vt_room_channel') : null;
+            if (bc) bc.postMessage(roomData);
+        } catch(e) {}
+    }
+
+    onLevel1Complete({ accepted: true, qualified: isQualified, rank: finishRank });
 }
 
 
 /** Shared by the manual pad and the gesture WebSocket, which both finish Level 1. */
 function onLevel1Complete(res) {
-    const banner = document.getElementById('lvl1-qualify-banner');
+    const qualifyBanner = document.getElementById('lvl1-qualify-banner');
+    const eliminateBanner = document.getElementById('lvl1-eliminated-banner');
+
     if (res.qualified) {
-        if (banner) banner.style.display = 'flex';
+        if (qualifyBanner) qualifyBanner.style.display = 'flex';
         showAlert('success', 'LEVEL 1 QUALIFIED',
-            `Rank #${res.rank} — you advance to The Lost Velocity City.`);
+            `Rank #${res.rank} — Top 3 finish! You advance to Level 2: The Lost Velocity City.`);
     } else {
-        showAlert('error', 'QUALIFICATION MISSED',
-            `You finished at rank #${res.rank}, outside the qualifying bracket. Mission over, Agent.`);
+        if (eliminateBanner) eliminateBanner.style.display = 'flex';
+        showAlert('error', 'ELIMINATED IN LEVEL 1',
+            `You finished at rank #${res.rank}. Only the top 3 players advance. Tournament over.`);
     }
 }
 
