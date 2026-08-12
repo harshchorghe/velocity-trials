@@ -16,6 +16,7 @@ import { Level3Scene } from "../components/level3/Level3Scene";
 import { Level3HUD } from "../components/level3/Level3HUD";
 import { gameState, formatTime } from "../utils/gameState";
 import { fetchSessionInfo } from "../utils/api";
+import { RoomLeaderboardModal } from "../components/RoomLeaderboardModal";
 
 const CITY = "/models/ciudadortogonal26.glb";
 const PLAYER = "/models/player1.glb";
@@ -61,13 +62,25 @@ export default function Home() {
   const [l3BattleState, setL3BattleState] = useState<"FIGHTING" | "VICTORY" | "DEFEAT">("FIGHTING");
   const [l3ElapsedTimeSec, setL3ElapsedTimeSec] = useState<number>(0);
   const [l3ResetSignal, setL3ResetSignal] = useState<number>(0);
+  const [showLeaderboard, setShowLeaderboard] = useState<boolean>(false);
 
-  // Sync player info from URL parameters & Backend session API
+  // Sync player info from URL parameters & Local Room Session API
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const urlToken = params.get("token") || localStorage.getItem("tc_token") || "";
       const urlLevel = params.get("level");
+
+      try {
+        const pStr = localStorage.getItem("tc_player");
+        if (pStr) {
+          const p = JSON.parse(pStr);
+          if (p.playerId && gameState.players[p.playerId]) {
+            setActiveControlledId(p.playerId);
+            if (p.name) gameState.players[p.playerId].name = p.name;
+          }
+        }
+      } catch (e) {}
 
       if (urlToken) {
         localStorage.setItem("tc_token", urlToken);
@@ -136,6 +149,7 @@ export default function Home() {
 
   return (
     <main
+      suppressHydrationWarning
       style={{
         width: "100vw",
         height: "100vh",
@@ -464,26 +478,59 @@ export default function Home() {
               🌟 HUMANITY IS SAVED
             </div>
 
-            <button
-              onClick={handleResetLevel3}
-              style={{
-                background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
-                border: "none",
-                borderRadius: "10px",
-                padding: "14px 36px",
-                color: "#ffffff",
-                fontSize: "16px",
-                fontWeight: 800,
-                cursor: "pointer",
-                boxShadow: "0 0 25px rgba(34, 197, 94, 0.6)",
-                letterSpacing: "0.5px",
-                marginTop: "8px",
-              }}
-            >
-              ⚔️ PLAY AGAIN
-            </button>
+            <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "8px" }}>
+              <button
+                onClick={() => setShowLeaderboard(true)}
+                style={{
+                  flex: 1,
+                  background: "linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "14px 24px",
+                  color: "#ffffff",
+                  fontSize: "15px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 0 25px rgba(56, 189, 248, 0.6)",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                🏆 TOURNAMENT LEADERBOARD
+              </button>
+              <button
+                onClick={handleResetLevel3}
+                style={{
+                  flex: 1,
+                  background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "14px 24px",
+                  color: "#ffffff",
+                  fontSize: "15px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 0 25px rgba(34, 197, 94, 0.6)",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                ⚔️ PLAY AGAIN
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* TOURNAMENT LEADERBOARD OVERLAY */}
+      {showLeaderboard && (
+        <RoomLeaderboardModal
+          l3ElapsedTimeSec={l3ElapsedTimeSec}
+          winnerName={activePlayer?.name}
+          onClose={() => setShowLeaderboard(false)}
+          onRestart={() => {
+            setShowLeaderboard(false);
+            handleResetLevel3();
+          }}
+        />
       )}
 
       {activeLevel === 3 && l3BattleState === "DEFEAT" && (
