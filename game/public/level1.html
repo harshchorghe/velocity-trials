@@ -21,6 +21,8 @@
     // Calling requestCameraAccess() before script.js loads would fail silently.
     // The actual camera start happens in the window.load handler below.
     window.requestCameraAccess = function() {};
+    window.toggleCameraAccess = function() {};
+    window.stopCameraAccess = function() {};
   </script>
 </head>
 
@@ -93,6 +95,13 @@
               CODE</button>
           </div>
         </div>
+
+        <!-- CAMERA TOGGLE CONTROL (LEFT PANEL - BELOW INPUT ANSWER BOX) -->
+        <div class="cam-toggle-left-wrap" style="margin-top:20px;">
+          <button id="toggle-cam-btn-left" class="action-btn submit" style="width:100%; font-size:13px; padding:12px 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="toggleCameraAccess()">
+            📷 ENABLE WEBCAM SCANNER
+          </button>
+        </div>
       </div>
 
       <!-- RIGHT: GESTURE CODE TERMINAL -->
@@ -110,8 +119,8 @@
           <video id="webcam-feed" autoplay playsinline muted></video>
           <canvas id="gesture-overlay-canvas"></canvas>
           <div class="cam-status" id="cam-status-text">🎥 CAMERA GESTURE SCANNER: INITIALIZING...</div>
-          <button id="start-cam-btn" class="action-btn submit" style="margin-top:8px; width:100%; font-size:13px; padding:10px; cursor:pointer; display:none;" onclick="requestCameraAccess()">📷 ENABLE WEBCAM SCANNER</button>
         </div>
+        <button id="start-cam-btn" class="action-btn submit" style="margin-top:8px; margin-bottom:16px; width:100%; font-size:13px; padding:10px; cursor:pointer;" onclick="toggleCameraAccess()">📷 ENABLE WEBCAM SCANNER</button>
 
 
         <!-- GESTURE DIGITAL PAD -->

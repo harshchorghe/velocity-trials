@@ -1099,20 +1099,6 @@ async function submitFinalGestureCode() {
             console.error('[Firebase] Error updating Level 1 progress:', fbErr);
         }
     }
-                const docRef = await db.collection(AGENTS_COL).add({
-                    name: GAME_STATE.player.name || 'Agent',
-                    roll: GAME_STATE.player.roll || '2K26',
-                    score: 3000,
-                    level1Done: true,
-                    level1Code: targetCode,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                localStorage.setItem('tc_firebase_doc_id', docRef.id);
-            }
-        } catch (e) {
-            console.warn('[Database] Completion update note:', e);
-        }
-    }
 
     let playerInfo = {};
     try { playerInfo = JSON.parse(localStorage.getItem('tc_player') || '{}'); } catch(e) {}
@@ -1271,17 +1257,84 @@ function classifyHandGesture(state) {
 }
 
 let mediaPipeTrackerInstance = null;
+let mediaStreamInstance = null;
 
 let isScriptCamActive = false;
+
+function updateCameraToggleButtons(isActive) {
+    const btnLeft = document.getElementById('toggle-cam-btn-left');
+    const btnRight = document.getElementById('start-cam-btn');
+    const label = isActive ? '📷 DISABLE WEBCAM SCANNER' : '📷 ENABLE WEBCAM SCANNER';
+
+    [btnLeft, btnRight].forEach(btn => {
+        if (btn) {
+            btn.textContent = label;
+            btn.style.display = 'flex';
+            btn.style.alignItems = 'center';
+            btn.style.justifyContent = 'center';
+            btn.style.gap = '8px';
+            if (isActive) {
+                btn.style.borderColor = '#ef4444';
+                btn.style.color = '#fca5a5';
+                btn.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.4) 100%)';
+            } else {
+                btn.style.borderColor = '#00d4ff';
+                btn.style.color = '#00f0ff';
+                btn.style.background = '';
+            }
+        }
+    });
+}
+window.updateCameraToggleButtons = updateCameraToggleButtons;
+
+function stopCameraAccess() {
+    const video = document.getElementById('webcam-feed');
+    const statusText = document.getElementById('cam-status-text');
+    const overlay = document.getElementById('gesture-overlay-canvas');
+
+    if (mediaStreamInstance) {
+        try {
+            mediaStreamInstance.getTracks().forEach(track => track.stop());
+        } catch (e) {}
+        mediaStreamInstance = null;
+    }
+    if (video) {
+        if (video.srcObject) {
+            try {
+                const tracks = video.srcObject.getTracks ? video.srcObject.getTracks() : [];
+                tracks.forEach(track => track.stop());
+            } catch (e) {}
+            video.srcObject = null;
+        }
+        try { video.pause(); } catch (e) {}
+    }
+    if (overlay) {
+        const octx = overlay.getContext('2d');
+        if (octx) octx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    isScriptCamActive = false;
+    lastDetectedDigit = -1;
+    gestureHoldCounter = 0;
+    gestureCooldown = false;
+
+    if (statusText) {
+        statusText.textContent = '🎥 CAMERA SCANNER: OFF (CLICK BUTTON TO ENABLE)';
+    }
+
+    updateCameraToggleButtons(false);
+}
+window.stopCameraAccess = stopCameraAccess;
+
 async function requestCameraAccess() {
     const video = document.getElementById('webcam-feed');
     const statusText = document.getElementById('cam-status-text');
-    const btn = document.getElementById('start-cam-btn');
 
     if (!video) return;
 
     // If camera is already streaming and active, just ensure gesture loop is running
     if (video.srcObject && video.srcObject.active && isScriptCamActive) {
+        updateCameraToggleButtons(true);
         initGestureRecognition(false);
         return;
     }
@@ -1289,13 +1342,13 @@ async function requestCameraAccess() {
     if (statusText) statusText.textContent = '🎥 REQUESTING CAMERA PERMISSION...';
 
     try {
-        if (!video.srcObject || !video.srcObject.active) {
-            const stream = await navigator.mediaDevices.getUserMedia({
+        if (!mediaStreamInstance || !mediaStreamInstance.active) {
+            mediaStreamInstance = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
                 audio: false
             });
-            video.srcObject = stream;
         }
+        video.srcObject = mediaStreamInstance;
         video.style.display = 'block';
         video.style.opacity = '1';
         if (video.paused) {
@@ -1305,7 +1358,8 @@ async function requestCameraAccess() {
         }
         isScriptCamActive = true;
         if (statusText) statusText.textContent = '🎥 CAMERA SCANNER: ACTIVE (SHOW HAND GESTURE 0-9)';
-        if (btn) btn.style.display = 'none';
+
+        updateCameraToggleButtons(true);
 
         initGestureRecognition(false);
     } catch (err) {
@@ -1314,16 +1368,24 @@ async function requestCameraAccess() {
         if (statusText) {
             statusText.textContent = '⚠️ CAMERA BLOCKED — PLEASE ALLOW IN BROWSER URL BAR 🔒';
         }
-        if (btn) btn.style.display = 'block';
+        updateCameraToggleButtons(false);
     }
 }
 window.requestCameraAccess = requestCameraAccess;
+
+async function toggleCameraAccess() {
+    if (isScriptCamActive) {
+        stopCameraAccess();
+    } else {
+        await requestCameraAccess();
+    }
+}
+window.toggleCameraAccess = toggleCameraAccess;
 
 function initGestureRecognition(autoStartStream = true) {
     const video = document.getElementById('webcam-feed');
     const overlay = document.getElementById('gesture-overlay-canvas');
     const statusText = document.getElementById('cam-status-text');
-    const btn = document.getElementById('start-cam-btn');
     if (!video) return;
 
     if (typeof Hands === 'undefined') {
@@ -1331,176 +1393,175 @@ function initGestureRecognition(autoStartStream = true) {
         return;
     }
 
-    // Guard: only allow one instance, but let recovery happen if video element is fresh
+    // Guard: only allow one instance initialization
     if (mediaPipeTrackerInstance) return;
 
     const octx = overlay ? overlay.getContext('2d') : null;
 
-    // ── MediaPipe Hands setup (supports up to 2 hands for digits 6–9)
-    const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-    hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.6
-    });
+    try {
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.6
+        });
 
-    // ── Gesture digit label map (matches the on-screen gesture table)
-    const DIGIT_LABELS = [
-        '✊ FIST (0)',
-        '☝️ ONE FINGER (1)',
-        '✌️ TWO FINGERS (2)',
-        '🤟 THREE FINGERS (3)',
-        '🖐️ FOUR FINGERS (4)',
-        '✋ OPEN PALM (5)',
-        '✋+☝️ SIX (6)',
-        '✋+✌️ SEVEN (7)',
-        '✋+🤟 EIGHT (8)',
-        '✋+🖐️ NINE (9)',
-    ];
+        const DIGIT_LABELS = [
+            '✊ FIST (0)',
+            '☝️ ONE FINGER (1)',
+            '✌️ TWO FINGERS (2)',
+            '🤟 THREE FINGERS (3)',
+            '🖐️ FOUR FINGERS (4)',
+            '✋ OPEN PALM (5)',
+            '✋+☝️ SIX (6)',
+            '✋+✌️ SEVEN (7)',
+            '✋+🤟 EIGHT (8)',
+            '✋+🖐️ NINE (9)',
+        ];
 
-    // ── Connection skeleton for drawing hand skeleton on overlay canvas
-    const HAND_CONNECTIONS = [
-        [0,1],[1,2],[2,3],[3,4],       // thumb
-        [0,5],[5,6],[6,7],[7,8],       // index
-        [0,9],[9,10],[10,11],[11,12],  // middle
-        [0,13],[13,14],[14,15],[15,16],// ring
-        [0,17],[17,18],[18,19],[19,20],// pinky
-        [5,9],[9,13],[13,17]           // palm cross-links
-    ];
+        const HAND_CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],       // thumb
+            [0,5],[5,6],[6,7],[7,8],       // index
+            [0,9],[9,10],[10,11],[11,12],  // middle
+            [0,13],[13,14],[14,15],[15,16],// ring
+            [0,17],[17,18],[18,19],[19,20],// pinky
+            [5,9],[9,13],[13,17]           // palm cross-links
+        ];
 
-    const HOLD_FRAMES_REQUIRED = 4; // ~4 video frames ≈ ~250ms hold for quick detection
+        const HOLD_FRAMES_REQUIRED = 4;
 
-    hands.onResults((results) => {
-        const detected = results.multiHandLandmarks || [];
+        hands.onResults((results) => {
+            if (!isScriptCamActive) return;
 
-        // ── Resize overlay canvas to match video
-        if (overlay && video.videoWidth && video.videoHeight) {
-            if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
-                overlay.width = video.videoWidth;
-                overlay.height = video.videoHeight;
+            const detected = results.multiHandLandmarks || [];
+
+            if (overlay && video.videoWidth && video.videoHeight) {
+                if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
+                    overlay.width = video.videoWidth;
+                    overlay.height = video.videoHeight;
+                }
             }
-        }
 
-        // ── Draw skeleton + landmarks on overlay canvas
-        if (octx && overlay) {
-            octx.clearRect(0, 0, overlay.width, overlay.height);
-
-            detected.forEach(hand => {
-                // Draw connection lines (skeleton)
-                octx.strokeStyle = 'rgba(0, 212, 255, 0.85)';
-                octx.lineWidth = 2;
-                HAND_CONNECTIONS.forEach(([a, b]) => {
-                    const pa = hand[a], pb = hand[b];
-                    if (!pa || !pb) return;
-                    octx.beginPath();
-                    octx.moveTo((1 - pa.x) * overlay.width, pa.y * overlay.height);
-                    octx.lineTo((1 - pb.x) * overlay.width, pb.y * overlay.height);
-                    octx.stroke();
-                });
-
-                // Draw landmark dots
-                hand.forEach((pt, idx) => {
-                    const px = (1 - pt.x) * overlay.width;
-                    const py = pt.y * overlay.height;
-                    octx.beginPath();
-                    octx.arc(px, py, idx === 0 ? 5 : 3, 0, Math.PI * 2);
-                    octx.fillStyle = idx === 0 ? '#ff6b6b' : '#39ff14';
-                    octx.fill();
-                });
-            });
-        }
-
-        // ── No hands visible: reset state
-        if (detected.length === 0) {
-            gestureHoldCounter = 0;
-            lastDetectedDigit = -1;
-            if (!gestureCooldown && statusText) {
-                statusText.textContent = '🎥 CAMERA ACTIVE — SHOW A HAND GESTURE (0–9) TO INPUT A DIGIT';
-            }
-            return;
-        }
-
-        // ── Classify digits 0–9 matching the Level 1 UI reference chart
-        let currentDigit = 0;
-        if (detected.length === 1) {
-            const st = getHandFingerState(detected[0]);
-            currentDigit = classifyHandGesture(st);
-        } else if (detected.length >= 2) {
-            const st1 = getHandFingerState(detected[0]);
-            const st2 = getHandFingerState(detected[1]);
-            const d1 = classifyHandGesture(st1);
-            const d2 = classifyHandGesture(st2);
-            currentDigit = Math.min(d1 + d2, 9);
-        }
-        currentDigit = Math.min(Math.max(currentDigit, 0), 9);
-
-        if (gestureCooldown) return;
-
-        if (currentDigit === lastDetectedDigit) {
-            gestureHoldCounter++;
-            const pct = Math.min(Math.round((gestureHoldCounter / HOLD_FRAMES_REQUIRED) * 100), 100);
-
-            // Draw progress bar directly on the overlay canvas
             if (octx && overlay) {
-                const barW = overlay.width * 0.8;
-                const barH = 12;
-                const barX = (overlay.width - barW) / 2;
-                const barY = overlay.height - 22;
-                octx.fillStyle = 'rgba(0,0,0,0.6)';
-                octx.fillRect(barX, barY, barW, barH);
-                octx.fillStyle = pct >= 100 ? '#39ff14' : '#00d4ff';
-                octx.fillRect(barX, barY, barW * (pct / 100), barH);
-                octx.strokeStyle = '#00d4ff';
-                octx.lineWidth = 1;
-                octx.strokeRect(barX, barY, barW, barH);
+                octx.clearRect(0, 0, overlay.width, overlay.height);
+
+                detected.forEach(hand => {
+                    octx.strokeStyle = 'rgba(0, 212, 255, 0.85)';
+                    octx.lineWidth = 2;
+                    HAND_CONNECTIONS.forEach(([a, b]) => {
+                        const pa = hand[a], pb = hand[b];
+                        if (!pa || !pb) return;
+                        octx.beginPath();
+                        octx.moveTo((1 - pa.x) * overlay.width, pa.y * overlay.height);
+                        octx.lineTo((1 - pb.x) * overlay.width, pb.y * overlay.height);
+                        octx.stroke();
+                    });
+
+                    hand.forEach((pt, idx) => {
+                        const px = (1 - pt.x) * overlay.width;
+                        const py = pt.y * overlay.height;
+                        octx.beginPath();
+                        octx.arc(px, py, idx === 0 ? 5 : 3, 0, Math.PI * 2);
+                        octx.fillStyle = idx === 0 ? '#ff6b6b' : '#39ff14';
+                        octx.fill();
+                    });
+                });
             }
 
-            if (statusText) {
-                statusText.textContent = `🎯 ${DIGIT_LABELS[currentDigit]} — HOLD STEADY ${pct}%`;
-            }
-
-            if (gestureHoldCounter >= HOLD_FRAMES_REQUIRED) {
+            if (detected.length === 0) {
                 gestureHoldCounter = 0;
-                gestureCooldown = true;
-                inputGestureDigit(currentDigit);
-                if (statusText) statusText.textContent = `✅ DIGIT ${currentDigit} CONFIRMED — ${DIGIT_LABELS[currentDigit]}`;
-
-                setTimeout(() => {
-                    gestureCooldown = false;
-                    lastDetectedDigit = -1;
-                    if (statusText) statusText.textContent = '🎥 READY — SHOW NEXT HAND GESTURE';
-                }, 1200);
+                lastDetectedDigit = -1;
+                if (!gestureCooldown && statusText) {
+                    statusText.textContent = '🎥 CAMERA ACTIVE — SHOW A HAND GESTURE (0–9) TO INPUT A DIGIT';
+                }
+                return;
             }
-        } else {
-            // Digit changed — reset accumulator
-            lastDetectedDigit = currentDigit;
-            gestureHoldCounter = 1;
-            if (statusText && currentDigit >= 0) {
-                statusText.textContent = `👁️ DETECTING: ${DIGIT_LABELS[currentDigit]} — HOLD STEADY...`;
+
+            let currentDigit = 0;
+            if (detected.length === 1) {
+                const st = getHandFingerState(detected[0]);
+                currentDigit = classifyHandGesture(st);
+            } else if (detected.length >= 2) {
+                const st1 = getHandFingerState(detected[0]);
+                const st2 = getHandFingerState(detected[1]);
+                const d1 = classifyHandGesture(st1);
+                const d2 = classifyHandGesture(st2);
+                currentDigit = Math.min(d1 + d2, 9);
             }
-        }
-    });
+            currentDigit = Math.min(Math.max(currentDigit, 0), 9);
 
-    mediaPipeTrackerInstance = hands;
+            if (gestureCooldown) return;
 
-    // ── Frame pump: send video frames to MediaPipe
-    let isSendingFrame = false;
-    async function processVideoFrames() {
-        if (video && video.readyState >= 2 && !video.paused && !isSendingFrame) {
-            isSendingFrame = true;
-            try {
-                await hands.send({ image: video });
-            } catch (e) { /* ignore individual frame errors */ }
-            isSendingFrame = false;
+            if (currentDigit === lastDetectedDigit) {
+                gestureHoldCounter++;
+                const pct = Math.min(Math.round((gestureHoldCounter / HOLD_FRAMES_REQUIRED) * 100), 100);
+
+                if (octx && overlay) {
+                    const barW = overlay.width * 0.8;
+                    const barH = 12;
+                    const barX = (overlay.width - barW) / 2;
+                    const barY = overlay.height - 22;
+                    octx.fillStyle = 'rgba(0,0,0,0.6)';
+                    octx.fillRect(barX, barY, barW, barH);
+                    octx.fillStyle = pct >= 100 ? '#39ff14' : '#00d4ff';
+                    octx.fillRect(barX, barY, barW * (pct / 100), barH);
+                    octx.strokeStyle = '#00d4ff';
+                    octx.lineWidth = 1;
+                    octx.strokeRect(barX, barY, barW, barH);
+                }
+
+                if (statusText) {
+                    statusText.textContent = `🎯 ${DIGIT_LABELS[currentDigit]} — HOLD STEADY ${pct}%`;
+                }
+
+                if (gestureHoldCounter >= HOLD_FRAMES_REQUIRED) {
+                    gestureHoldCounter = 0;
+                    gestureCooldown = true;
+                    inputGestureDigit(currentDigit);
+                    if (statusText) statusText.textContent = `✅ DIGIT ${currentDigit} CONFIRMED — ${DIGIT_LABELS[currentDigit]}`;
+
+                    setTimeout(() => {
+                        gestureCooldown = false;
+                        lastDetectedDigit = -1;
+                        if (statusText && isScriptCamActive) statusText.textContent = '🎥 READY — SHOW NEXT HAND GESTURE';
+                    }, 1200);
+                }
+            } else {
+                lastDetectedDigit = currentDigit;
+                gestureHoldCounter = 1;
+                if (statusText && currentDigit >= 0) {
+                    statusText.textContent = `👁️ DETECTING: ${DIGIT_LABELS[currentDigit]} — HOLD STEADY...`;
+                }
+            }
+        });
+
+        mediaPipeTrackerInstance = hands;
+
+        let isSendingFrame = false;
+        async function processVideoFrames() {
+            if (isScriptCamActive && video && video.readyState >= 2 && !video.paused && video.videoWidth > 0 && !isSendingFrame) {
+                isSendingFrame = true;
+                try {
+                    await hands.send({ image: video });
+                } catch (e) {
+                    // Suppress frame processing errors
+                }
+                isSendingFrame = false;
+            }
+            requestAnimationFrame(processVideoFrames);
         }
         requestAnimationFrame(processVideoFrames);
-    }
-    requestAnimationFrame(processVideoFrames);
 
-    if (statusText) statusText.textContent = '🎥 CAMERA ACTIVE — SHOW A HAND GESTURE (0–9) TO INPUT A DIGIT';
+        if (statusText && isScriptCamActive) {
+            statusText.textContent = '🎥 CAMERA ACTIVE — SHOW A HAND GESTURE (0–9) TO INPUT A DIGIT';
+        }
+    } catch (err) {
+        console.error('[MediaPipe Init Error]', err);
+        mediaPipeTrackerInstance = null;
+    }
 }
 window.initGestureRecognition = initGestureRecognition;
 
