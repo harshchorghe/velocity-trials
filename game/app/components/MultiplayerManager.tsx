@@ -168,9 +168,11 @@ export function MultiplayerManager({
 
   return (
     <group name="multiplayer-players-container">
-      {Object.keys(gameState.players).map((id) => (
-        <Player key={id} id={id} />
-      ))}
+      {Object.keys(gameState.players)
+        .filter((id) => id === activeControlledId)
+        .map((id) => (
+          <Player key={id} id={id} />
+        ))}
     </group>
   );
 }

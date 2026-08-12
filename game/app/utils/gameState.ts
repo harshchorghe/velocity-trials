@@ -52,7 +52,7 @@ class GameStore {
   qualifiedPlayerIds: string[] = [];
   eliminatedPlayerId: string | null = null;
   completionVideoUrl: string = "/videos/level2-complete.mp4";
-  qualificationLimit: number = 2;
+  qualificationLimit: number = 1;
 
   gestureState: GestureCommandState = {
     rawGesture: "NONE",
@@ -110,36 +110,6 @@ class GameStore {
       status: "PLAYING",
       elapsedTimeSec: 0,
     },
-    "player-2": {
-      id: "player-2",
-      name: "Player 2",
-      color: "#f43f5e",
-      isLocalPlayer: false,
-      pos: [11.11, 0, -2.06],
-      rotationY: -Math.PI / 2,
-      health: 100,
-      maxHealth: 100,
-      lives: 3,
-      activeAnim: "idle",
-      stonesCollected: 0,
-      status: "PLAYING",
-      elapsedTimeSec: 0,
-    },
-    "player-3": {
-      id: "player-3",
-      name: "Player 3",
-      color: "#a855f7",
-      isLocalPlayer: false,
-      pos: [-2.66, 0, 13.21],
-      rotationY: Math.PI,
-      health: 100,
-      maxHealth: 100,
-      lives: 3,
-      activeAnim: "idle",
-      stonesCollected: 0,
-      status: "PLAYING",
-      elapsedTimeSec: 0,
-    },
   };
 
   stones: Record<string, StoneData> = {
@@ -166,58 +136,6 @@ class GameStore {
       name: "P1 Gem #3",
       pos: [17.10, 0, -2.06], // Far East Dead End
       color: "#38bdf8",
-      collected: false,
-    },
-
-    // Player 2 Assigned Stones (Green) — Distributed in Far Northwest, South Avenue, and Northwest Junction
-    "P2_STONE_1": {
-      id: "P2_STONE_1",
-      playerId: "player-2",
-      name: "P2 Gem #1",
-      pos: [-33.71, 0, 13.22], // Far Northwest Corner
-      color: "#10b981",
-      collected: false,
-    },
-    "P2_STONE_2": {
-      id: "P2_STONE_2",
-      playerId: "player-2",
-      name: "P2 Gem #2",
-      pos: [-2.63, 0, -20.47], // South Main Avenue
-      color: "#10b981",
-      collected: false,
-    },
-    "P2_STONE_3": {
-      id: "P2_STONE_3",
-      playerId: "player-2",
-      name: "P2 Gem #3",
-      pos: [-15.55, 0, 13.22], // Northwest Junction
-      color: "#10b981",
-      collected: false,
-    },
-
-    // Player 3 Assigned Stones (Purple) — Distributed in Far Southeast, Far West, and Southeast Intersection
-    "P3_STONE_1": {
-      id: "P3_STONE_1",
-      playerId: "player-3",
-      name: "P3 Gem #1",
-      pos: [14.35, 0, -25.52], // Far Southeast Corner
-      color: "#a855f7",
-      collected: false,
-    },
-    "P3_STONE_2": {
-      id: "P3_STONE_2",
-      playerId: "player-3",
-      name: "P3 Gem #2",
-      pos: [-33.69, 0, -2.06], // Far West Avenue
-      color: "#a855f7",
-      collected: false,
-    },
-    "P3_STONE_3": {
-      id: "P3_STONE_3",
-      playerId: "player-3",
-      name: "P3 Gem #3",
-      pos: [17.06, 0, -20.47], // Southeast Intersection
-      color: "#a855f7",
       collected: false,
     },
   };
@@ -300,73 +218,7 @@ class GameStore {
     distToTarget?: number;
     activeAnim: string;
     lastAttackTime: number;
-  }> = {
-    "enemy-1": {
-      id: "enemy-1",
-      name: "Enemy 1",
-      color: "#ef4444",
-      pos: [-33.69, 0, -2.06],
-      rotationY: Math.PI / 2,
-      health: 120,
-      maxHealth: 120,
-      state: "idle",
-      targetId: null,
-      activeAnim: "idle",
-      lastAttackTime: 0,
-    },
-    "enemy-2": {
-      id: "enemy-2",
-      name: "Enemy 2",
-      color: "#f97316",
-      pos: [14.35, 0, -25.52],
-      rotationY: -Math.PI / 2,
-      health: 120,
-      maxHealth: 120,
-      state: "idle",
-      targetId: null,
-      activeAnim: "idle",
-      lastAttackTime: 0,
-    },
-    "enemy-3": {
-      id: "enemy-3",
-      name: "Enemy 3",
-      color: "#eab308",
-      pos: [-33.72, 0, -20.47],
-      rotationY: 0,
-      health: 120,
-      maxHealth: 120,
-      state: "idle",
-      targetId: null,
-      activeAnim: "idle",
-      lastAttackTime: 0,
-    },
-    "enemy-4": {
-      id: "enemy-4",
-      name: "Enemy 4",
-      color: "#ec4899",
-      pos: [14.35, 0, 26.58],
-      rotationY: Math.PI,
-      health: 120,
-      maxHealth: 120,
-      state: "idle",
-      targetId: null,
-      activeAnim: "idle",
-      lastAttackTime: 0,
-    },
-    "enemy-5": {
-      id: "enemy-5",
-      name: "Enemy 5",
-      color: "#10b981",
-      pos: [-15.55, 0, 13.22],
-      rotationY: -Math.PI / 4,
-      health: 120,
-      maxHealth: 120,
-      state: "idle",
-      targetId: null,
-      activeAnim: "idle",
-      lastAttackTime: 0,
-    },
-  };
+  }> = {};
 
   detectionRange: number = 25.0;
   cameraYaw: number = 0;

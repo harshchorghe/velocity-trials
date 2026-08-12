@@ -402,7 +402,6 @@ export default function Home() {
             {/* Level 2 City Environment */}
             <City onLoaded={handleCityLoaded} />
             <MultiplayerManager activeControlledId={activeControlledId} />
-            <EnemyManager />
             <StoneManager />
             <EnergyBarrier />
             <ThirdPersonCamera activeControlledId={activeControlledId} />
