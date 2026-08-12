@@ -4,7 +4,13 @@ import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { onAgentsUpdate, AgentData } from "../utils/firebase";
 
+const ADMIN_PASSWORD = "Meet@velo11";
+
 export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [passwordInput, setPasswordInput] = useState<string>("");
+  const [passwordError, setPasswordError] = useState<string>("");
+
   const [agents, setAgents] = useState<AgentData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -12,13 +18,44 @@ export default function AdminPage() {
   const [levelFilter, setLevelFilter] = useState<string>("ALL");
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const auth = sessionStorage.getItem("tc_admin_auth");
+      if (auth === "true") {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
     setLoading(true);
     const unsubscribe = onAgentsUpdate((data) => {
       setAgents(data);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAuthenticated]);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === ADMIN_PASSWORD) {
+      setIsAuthenticated(true);
+      setPasswordError("");
+      try {
+        sessionStorage.setItem("tc_admin_auth", "true");
+      } catch (_) {}
+    } else {
+      setPasswordError("🔒 ACCESS DENIED — INVALID ADMIN PASSWORD");
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setPasswordInput("");
+    try {
+      sessionStorage.removeItem("tc_admin_auth");
+    } catch (_) {}
+  };
 
   const formatTime = (seconds?: number): string => {
     if (typeof seconds !== "number" || isNaN(seconds) || seconds < 0) return "--:--";
@@ -29,7 +66,6 @@ export default function AdminPage() {
 
   const filteredAgents = useMemo(() => {
     return agents.filter((agent) => {
-      // Search text match
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -38,13 +74,11 @@ export default function AdminPage() {
         (agent.dept && agent.dept.toLowerCase().includes(q)) ||
         (agent.year && agent.year.toLowerCase().includes(q));
 
-      // Status filter
       let matchStatus = true;
       if (statusFilter === "COMPLETED") matchStatus = agent.status === "COMPLETED";
       else if (statusFilter === "IN_PROGRESS") matchStatus = agent.status === "IN_PROGRESS" || agent.status === "QUALIFIED";
       else if (statusFilter === "FAILED") matchStatus = agent.status === "TIME_EXPIRED" || agent.status === "ELIMINATED";
 
-      // Level filter
       let matchLevel = true;
       if (levelFilter !== "ALL") {
         matchLevel = String(agent.maxLevel || 1) === levelFilter;
@@ -84,6 +118,181 @@ export default function AdminPage() {
     document.body.removeChild(link);
   };
 
+  /* ══════════════════════════════════════════════════
+     1. ADMIN LOCK SCREEN (IF UNAUTHENTICATED)
+  ══════════════════════════════════════════════════ */
+  if (!isAuthenticated) {
+    return (
+      <div
+        style={{
+          width: "100vw",
+          height: "100vh",
+          backgroundColor: "#020617",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "20px",
+          boxSizing: "border-box",
+          fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          color: "#f8fafc",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Ambient Glow Effects */}
+        <div
+          style={{
+            position: "absolute",
+            width: "400px",
+            height: "400px",
+            background: "radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(0, 0, 0, 0) 70%)",
+            top: "20%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* Lock Screen Card */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 10,
+            background: "rgba(15, 23, 42, 0.92)",
+            backdropFilter: "blur(20px)",
+            border: "1.5px solid rgba(56, 189, 248, 0.3)",
+            borderRadius: "20px",
+            padding: "40px 36px",
+            maxWidth: "440px",
+            width: "100%",
+            textAlign: "center",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.2)",
+          }}
+        >
+          <div
+            style={{
+              width: "64px",
+              height: "64px",
+              margin: "0 auto 20px auto",
+              borderRadius: "50%",
+              background: "rgba(56, 189, 248, 0.15)",
+              border: "1px solid rgba(56, 189, 248, 0.4)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "30px",
+              boxShadow: "0 0 20px rgba(56, 189, 248, 0.3)",
+            }}
+          >
+            🔐
+          </div>
+
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "22px",
+              fontWeight: 900,
+              letterSpacing: "1px",
+              background: "linear-gradient(90deg, #38bdf8 0%, #00f0ff 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            COMMAND CENTER LOCK
+          </h1>
+
+          <p style={{ margin: "6px 0 24px 0", fontSize: "13px", color: "#94a3b8", fontWeight: 500 }}>
+            Restricted Admin Authorization Key Required
+          </p>
+
+          <form onSubmit={handlePasswordSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ textAlign: "left" }}>
+              <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#cbd5e1", marginBottom: "6px", letterSpacing: "0.5px" }}>
+                ENTER MASTER PASSWORD
+              </label>
+              <input
+                type="password"
+                placeholder="Enter password..."
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  setPasswordError("");
+                }}
+                autoFocus
+                required
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  background: "#020617",
+                  border: passwordError ? "1px solid #ef4444" : "1px solid rgba(255, 255, 255, 0.15)",
+                  borderRadius: "10px",
+                  padding: "12px 16px",
+                  color: "#ffffff",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.5)",
+                }}
+              />
+            </div>
+
+            {passwordError && (
+              <div
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.4)",
+                  color: "#fca5a5",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                }}
+              >
+                {passwordError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              style={{
+                width: "100%",
+                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                border: "none",
+                borderRadius: "10px",
+                padding: "13px 20px",
+                color: "#ffffff",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 0 20px rgba(56, 189, 248, 0.4)",
+                letterSpacing: "0.5px",
+                transition: "all 0.2s ease",
+              }}
+            >
+              🔓 UNLOCK TERMINAL
+            </button>
+          </form>
+
+          <div style={{ marginTop: "20px" }}>
+            <Link
+              href="/index.html"
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              ← Return to Main Terminal
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ══════════════════════════════════════════════════
+     2. AUTHENTICATED LEADERBOARD DASHBOARD
+  ══════════════════════════════════════════════════ */
   return (
     <div
       style={{
@@ -145,6 +354,22 @@ export default function AdminPage() {
               }}
             >
               📥 EXPORT CSV
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                background: "rgba(239, 68, 68, 0.15)",
+                color: "#ef4444",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                borderRadius: "8px",
+                padding: "10px 18px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              🔒 LOCK TERMINAL
             </button>
             <Link
               href="/index.html"
