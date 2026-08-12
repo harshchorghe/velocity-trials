@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velocity Trials — Level 1: Physical Quest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <!-- MediaPipe Hands & Camera Utils for Gesture Recognition -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <!-- Three.js and Anime.js for 3D graphics and master animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" crossorigin="anonymous"></script>
+  <script>
+    async function requestCameraAccess() {
+      const video = document.getElementById('webcam-feed');
+      const statusText = document.getElementById('cam-status-text');
+      const btn = document.getElementById('start-cam-btn');
+      if (!video) return;
+
+      if (statusText) statusText.textContent = '🎥 REQUESTING CAMERA PERMISSION...';
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+          audio: false
+        });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        video.style.opacity = '1';
+        await video.play();
+        if (statusText) statusText.textContent = '🎥 CAMERA SCANNER: ACTIVE (SHOW HAND GESTURE 0-9)';
+        if (btn) btn.style.display = 'none';
+
+        if (typeof initGestureRecognition === 'function') {
+          initGestureRecognition(false);
+        }
+      } catch (err) {
+        console.error('[Camera Error]', err);
+        if (statusText) statusText.textContent = '⚠️ CAMERA BLOCKED — CHECK BROWSER PERMISSIONS 🔒';
+        alert('Camera Access Error: Could not access webcam. Details: ' + (err.message || err));
+      }
+    }
+    window.requestCameraAccess = requestCameraAccess;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('start-cam-btn');
+      if (btn) btn.addEventListener('click', requestCameraAccess);
+    });
+  </script>
+</head>
+
+
+<body id="page-level1">
+
+  <!-- AUDIO TOGGLE -->
+  <button id="audio-toggle" title="Toggle Sound" onclick="toggleAudio()">🔊</button>
+
+  <!-- CURSOR -->
+  <div id="cursor-glow">
+    <div id="cursor-outer"></div>
+    <div id="cursor-inner"></div>
+  </div>
+
+  <canvas id="bgc"></canvas>
+  <div id="scanline-overlay"></div>
+
+  <!-- ALERT MODAL -->
+  <div class="modal-overlay" id="modal-alert">
+    <div class="modal-panel" style="max-width:360px;text-align:center">
+      <div class="mc tl"></div>
+      <div class="mc tr"></div>
+      <div class="mc bl"></div>
+      <div class="mc br"></div>
+      <div class="alert-icon-wrap" id="alert-icon">!</div>
+      <div class="alert-title-el" id="alert-title">ALERT</div>
+      <div class="alert-msg-el" id="alert-msg"></div>
+      <button class="modal-close" onclick="closeModal('modal-alert')">ACKNOWLEDGED</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       STAGE — LEVEL 1: THE PHYSICAL QUEST & GESTURE CODE
+  ══════════════════════════════════════════════════ -->
+  <div id="game-stage-1" class="stage-container" style="display:flex">
+    <div class="stage-header">
+      <div class="stage-badge">LEVEL 1</div>
+      <h2 class="stage-title">THE PHYSICAL QUEST & GESTURE RECOGNITION</h2>
+      <div class="stage-timer-box">
+        <span class="timer-label">QUEST TIMER:</span>
+        <span id="lvl1-timer" class="timer-val">00:00.0</span>
+      </div>
+    </div>
+
+    <div class="stage-content-grid">
+      <!-- LEFT: SECRET CODE STATUS -->
+      <div class="clue-panel">
+        <div class="panel-hd">◈ SECRET GESTURE MASTER TERMINAL</div>
+
+
+        <!-- GESTURE CODE INPUT SLOTS -->
+        <div class="code-display-wrap">
+          <div class="code-label">SECRET GESTURE CODE ENTERED:</div>
+          <div class="code-slots">
+            <span class="slot" id="slot-0">_</span>
+            <span class="slot" id="slot-1">_</span>
+            <span class="slot" id="slot-2">_</span>
+            <span class="slot" id="slot-3">_</span>
+          </div>
+          <div class="code-actions">
+            <button class="action-btn clear" onclick="clearGestureCode()">CLEAR CODE</button>
+            <button class="action-btn submit" id="submit-gesture-btn" onclick="submitFinalGestureCode()">SUBMIT GESTURE
+              CODE</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: GESTURE CODE TERMINAL -->
+      <div class="gesture-panel">
+        <div class="panel-hd">
+          <img src="./assets/images/sci_fi_velocity_crystal.png" alt="Crystal"
+            style="width:24px; height:24px; vertical-align:middle; margin-right:8px; border-radius:4px;">
+          ◈ GESTURE INPUT TERMINAL
+        </div>
+        <div class="gesture-sub">Use Hand Gestures (WebCam or Gesture Pad below) to enter the Final Secret Code! Digits
+          6–9 need
+          both hands — e.g. 6 = open palm + one finger.</div>
+
+        <!-- CAMERA / GESTURE PREVIEW -->
+        <div class="webcam-box">
+          <video id="webcam-feed" autoplay playsinline muted></video>
+          <canvas id="gesture-overlay-canvas"></canvas>
+          <div class="cam-status" id="cam-status-text">🎥 CAMERA GESTURE SCANNER: STANDBY</div>
+          <button id="start-cam-btn" class="action-btn submit" style="margin-top:8px; width:100%; font-size:13px; padding:10px; cursor:pointer;" onclick="requestCameraAccess()">📷 ENABLE WEBCAM SCANNER</button>
+        </div>
+
+
+        <!-- GESTURE DIGITAL PAD -->
+        <div class="gesture-pad-wrap">
+          <div class="pad-label">HAND GESTURE RECOGNITION PAD (TOUCH / MOUSE / CAMERA):</div>
+          <div class="gesture-btn-grid">
+            <button class="g-btn" onclick="inputGestureDigit(0)"><span class="g-hand">✊</span> 0 (Fist)</button>
+            <button class="g-btn" onclick="inputGestureDigit(1)"><span class="g-hand">☝️</span> 1 (Index)</button>
+            <button class="g-btn" onclick="inputGestureDigit(2)"><span class="g-hand">✌️</span> 2 (Victory)</button>
+            <button class="g-btn" onclick="inputGestureDigit(3)"><span class="g-hand">🤟</span> 3 (Three)</button>
+            <button class="g-btn" onclick="inputGestureDigit(4)"><span class="g-hand">🖐️</span> 4 (Four)</button>
+            <button class="g-btn" onclick="inputGestureDigit(5)"><span class="g-hand">✋</span> 5 (Open Palm)</button>
+            <!-- 6-9 are two-handed: an open palm plus 1-4 fingers on the other hand. -->
+            <button class="g-btn" onclick="inputGestureDigit(6)"><span class="g-hand">✋☝️</span> 6 (5+1)</button>
+            <button class="g-btn" onclick="inputGestureDigit(7)"><span class="g-hand">✋✌️</span> 7 (5+2)</button>
+            <button class="g-btn" onclick="inputGestureDigit(8)"><span class="g-hand">✋🤟</span> 8 (5+3)</button>
+            <button class="g-btn" onclick="inputGestureDigit(9)"><span class="g-hand">✋🖐️</span> 9 (5+4)</button>
+          </div>
+        </div>
+
+
+        <!-- QUALIFICATION BANNER -->
+        <div class="level-complete-overlay" id="lvl1-qualify-banner" style="display:none">
+          <div class="complete-box">
+            <div class="c-icon">🎉</div>
+            <div class="c-title">LEVEL 1 QUALIFIED!</div>
+            <div class="c-desc">Top performer ranking confirmed. You have unlocked access to Level 2 — The Lost Velocity
+              City!</div>
+            <button class="start-btn" onclick="proceedToLevel2()">ENTER THE LOST VELOCITY CITY ›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- GREETING VIDEO OVERLAY -->
+  <div id="greet-video-overlay" style="display:none;" class="greet-overlay">
+    <video id="greet-video" autoplay muted playsinline preload="auto">
+      <source src="assets/videos/background.mp4" type="video/mp4">
+    </video>
+    <button id="greet-skip" class="start-btn greet-skip-btn">PROCEED TO NEXT MISSION ›</button>
+  </div>
+
+  <script src="./script.js?v=3"></script>
+  <script src="./vfx.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof initGestureRecognition === 'function') initGestureRecognition();
+    });
+    window.addEventListener('load', () => {
+      if (typeof initGestureRecognition === 'function') initGestureRecognition();
+    });
+  </script>
+</body>
+
+
+</html>
