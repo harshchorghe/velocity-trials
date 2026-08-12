@@ -542,11 +542,7 @@ async function fetchRoomData(code) {
     const norm = normalizeRoomCode(code);
     if (!norm) return null;
 
-    try {
-        const local = localStorage.getItem('vt_room_' + norm);
-        if (local) return JSON.parse(local);
-    } catch (e) {}
-
+    // Check Firebase Firestore first for live cross-device accuracy
     const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
     if (fs) {
         try {
@@ -560,6 +556,12 @@ async function fetchRoomData(code) {
             console.warn('[Firebase] Room lookup error:', fbErr);
         }
     }
+
+    try {
+        const local = localStorage.getItem('vt_room_' + norm);
+        if (local) return JSON.parse(local);
+    } catch (e) {}
+
     return null;
 }
 
@@ -586,54 +588,295 @@ function subscribeToRoom(code) {
     }
 }
 
-function setRoomMode(mode) {
+function switchCardMode(mode) {
     roomMode = mode;
-    const btnCreate = document.getElementById('btn-mode-create');
-    const btnJoin = document.getElementById('btn-mode-join');
-    const fgRoomCode = document.getElementById('fg-room-code');
+    const tabCreate = document.getElementById('tab-btn-create');
+    const tabJoin = document.getElementById('tab-btn-join');
+    const cardCreate = document.getElementById('card-create-team');
+    const cardJoin = document.getElementById('card-join-team');
 
     if (typeof AUDIO !== 'undefined' && AUDIO.sfxClick) AUDIO.sfxClick();
 
     if (mode === 'JOIN') {
-        if (btnJoin) {
-            btnJoin.style.background = 'rgba(0,240,255,0.25)';
-            btnJoin.style.borderColor = '#00f0ff';
-            btnJoin.style.color = '#00f0ff';
-            btnJoin.style.boxShadow = '0 0 15px rgba(0,240,255,0.4)';
+        if (tabJoin) {
+            tabJoin.classList.add('active');
+            tabJoin.style.background = 'rgba(0,240,255,0.25)';
+            tabJoin.style.borderColor = '#00f0ff';
+            tabJoin.style.color = '#00f0ff';
+            tabJoin.style.boxShadow = '0 0 15px rgba(0,240,255,0.4)';
         }
-        if (btnCreate) {
-            btnCreate.style.background = 'rgba(255,255,255,0.05)';
-            btnCreate.style.borderColor = '#444';
-            btnCreate.style.color = '#aaa';
-            btnCreate.style.boxShadow = 'none';
+        if (tabCreate) {
+            tabCreate.classList.remove('active');
+            tabCreate.style.background = 'rgba(255,255,255,0.08)';
+            tabCreate.style.borderColor = '#555';
+            tabCreate.style.color = '#fff';
+            tabCreate.style.boxShadow = 'none';
         }
-        if (fgRoomCode) fgRoomCode.style.display = 'block';
+        if (cardCreate) cardCreate.style.display = 'none';
+        if (cardJoin) cardJoin.style.display = 'block';
         setTimeout(() => document.getElementById('joinRoomCode')?.focus(), 50);
     } else {
-        if (btnCreate) {
-            btnCreate.style.background = 'rgba(0,240,255,0.25)';
-            btnCreate.style.borderColor = '#00f0ff';
-            btnCreate.style.color = '#00f0ff';
-            btnCreate.style.boxShadow = '0 0 15px rgba(0,240,255,0.4)';
+        if (tabCreate) {
+            tabCreate.classList.add('active');
+            tabCreate.style.background = 'rgba(0,240,255,0.25)';
+            tabCreate.style.borderColor = '#00f0ff';
+            tabCreate.style.color = '#00f0ff';
+            tabCreate.style.boxShadow = '0 0 15px rgba(0,240,255,0.4)';
         }
-        if (btnJoin) {
-            btnJoin.style.background = 'rgba(255,255,255,0.05)';
-            btnJoin.style.borderColor = '#444';
-            btnJoin.style.color = '#aaa';
-            btnJoin.style.boxShadow = 'none';
+        if (tabJoin) {
+            tabJoin.classList.remove('active');
+            tabJoin.style.background = 'rgba(255,255,255,0.08)';
+            tabJoin.style.borderColor = '#555';
+            tabJoin.style.color = '#fff';
+            tabJoin.style.boxShadow = 'none';
         }
-        if (fgRoomCode) fgRoomCode.style.display = 'none';
+        if (cardJoin) cardJoin.style.display = 'none';
+        if (cardCreate) cardCreate.style.display = 'block';
     }
 }
-window.setRoomMode = setRoomMode;
+window.switchCardMode = switchCardMode;
+window.setRoomMode = switchCardMode;
+
+async function handleFindTeam() {
+    const input = document.getElementById('joinRoomCode');
+    const errEl = document.getElementById('err-find-team');
+    const previewBox = document.getElementById('team-preview-box');
+    const joinForm = document.getElementById('joinTeamForm');
+
+    const code = normalizeRoomCode(input ? input.value : '');
+    if (!code || code.length < 4) {
+        if (errEl) {
+            errEl.textContent = '⚠ PLEASE ENTER A VALID 6-CHAR TEAM CODE (e.g. VT-8921)';
+            errEl.style.display = 'block';
+        }
+        if (previewBox) previewBox.style.display = 'none';
+        if (joinForm) joinForm.style.display = 'none';
+        return;
+    }
+
+    if (typeof AUDIO !== 'undefined' && AUDIO.sfxClick) AUDIO.sfxClick();
+
+    const room = await fetchRoomData(code);
+    if (!room) {
+        if (errEl) {
+            errEl.textContent = `⚠ NO TEAM FOUND WITH CODE "${code}". PLEASE CHECK AND RETRY.`;
+            errEl.style.display = 'block';
+        }
+        if (previewBox) previewBox.style.display = 'none';
+        if (joinForm) joinForm.style.display = 'none';
+        return;
+    }
+
+    if (errEl) errEl.style.display = 'none';
+
+    const host = (room.players || []).find(p => p.isHost) || (room.players ? room.players[0] : null);
+    const joinedCount = (room.players || []).length;
+    const isFull = joinedCount >= 4;
+
+    const previewCode = document.getElementById('preview-team-code');
+    const previewStatus = document.getElementById('preview-slots-status');
+    const previewHost = document.getElementById('preview-host-name');
+    const previewMembers = document.getElementById('preview-members-list');
+
+    if (previewCode) previewCode.textContent = 'CODE: ' + room.roomCode;
+    if (previewStatus) {
+        if (isFull) {
+            previewStatus.textContent = 'ROOM FULL (4/4)';
+            previewStatus.style.background = '#ef4444';
+            previewStatus.style.color = '#fff';
+        } else {
+            previewStatus.textContent = `AVAILABLE (${joinedCount}/4 JOINED)`;
+            previewStatus.style.background = '#4ade80';
+            previewStatus.style.color = '#000';
+        }
+    }
+    if (previewHost) previewHost.textContent = '👑 HOST: ' + (host ? host.name.toUpperCase() : 'UNKNOWN');
+    if (previewMembers) {
+        const names = (room.players || []).map(p => p.name + (p.isHost ? ' (Host)' : '')).join(', ');
+        previewMembers.textContent = 'Current Squad: ' + (names || 'None');
+    }
+
+    if (previewBox) previewBox.style.display = 'block';
+
+    if (isFull) {
+        if (joinForm) joinForm.style.display = 'none';
+        showAlert('error', 'TEAM FULL', `Team ${room.roomCode} already has 4 players registered.`);
+    } else {
+        if (joinForm) joinForm.style.display = 'block';
+    }
+}
+window.handleFindTeam = handleFindTeam;
+
+let sessionPlayer = null;
+
+function getLocalPlayer() {
+    if (sessionPlayer) return sessionPlayer;
+    try {
+        const sess = sessionStorage.getItem('tc_player_session');
+        if (sess) {
+            sessionPlayer = JSON.parse(sess);
+            return sessionPlayer;
+        }
+    } catch(e) {}
+    try {
+        const local = localStorage.getItem('tc_player');
+        if (local) {
+            sessionPlayer = JSON.parse(local);
+            return sessionPlayer;
+        }
+    } catch(e) {}
+    return null;
+}
+
+async function handleCreateTeamSubmit() {
+    const nameInput = document.getElementById('createHostName');
+    const phoneInput = document.getElementById('createPhone');
+    const deptInput = document.getElementById('createDept');
+    const yearInput = document.getElementById('createYear');
+    const agreeInput = document.getElementById('createAgree');
+
+    const n = nameInput ? nameInput.value.trim() : '';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    const d = deptInput ? deptInput.value : '';
+    const y = yearInput ? yearInput.value : '';
+
+    if (!n || n.length < 2) {
+        showAlert('error', 'NAME REQUIRED', 'Please enter your full name (at least 2 characters).');
+        return false;
+    }
+    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+        showAlert('error', 'INVALID PHONE', 'Please enter a valid 10-digit Indian phone number.');
+        return false;
+    }
+    if (!d) {
+        showAlert('error', 'SELECT DEPARTMENT', 'Please select your department.');
+        return false;
+    }
+    if (!y) {
+        showAlert('error', 'SELECT YEAR', 'Please select your academic year.');
+        return false;
+    }
+    if (agreeInput && !agreeInput.checked) {
+        showAlert('error', 'RULES AGREEMENT', 'Please agree to the TechChase Rules and Regulations.');
+        return false;
+    }
+
+    if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
+
+    const agId = 'AG-' + Math.floor(1000 + Math.random() * 9000);
+    const token = 'agent-' + Date.now();
+    const targetCode = 'VT-' + Math.floor(1000 + Math.random() * 9000);
+
+    activeRoom = {
+        roomCode: targetCode,
+        status: 'LOBBY',
+        players: [
+            { id: 'player-1', slot: 1, name: n, dept: d, isHost: true, level1Time: null, level1Status: 'PENDING', level2Time: null, level2Status: 'PENDING', level3BossTime: null }
+        ],
+        level1FinishCount: 0,
+        level2FinishCount: 0,
+        winnerName: null
+    };
+
+    saveAndBroadcastRoom(activeRoom);
+    subscribeToRoom(targetCode);
+
+    sessionPlayer = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, roomCode: targetCode, playerSlot: 1, playerId: 'player-1', isHost: true };
+    try {
+        localStorage.setItem('tc_player', JSON.stringify(sessionPlayer));
+        sessionStorage.setItem('tc_player_session', JSON.stringify(sessionPlayer));
+        localStorage.setItem('tc_token', token);
+    } catch(e) {}
+    if (typeof API !== 'undefined') API.token = token;
+
+    updateLobbySlots(activeRoom);
+    openModal('modal-room-lobby');
+    return false;
+}
+window.handleCreateTeamSubmit = handleCreateTeamSubmit;
+
+async function handleJoinTeamSubmit() {
+    const inputCode = document.getElementById('joinRoomCode');
+    const nameInput = document.getElementById('joinPlayerName');
+    const phoneInput = document.getElementById('joinPhone');
+    const deptInput = document.getElementById('joinDept');
+    const yearInput = document.getElementById('joinYear');
+    const agreeInput = document.getElementById('joinAgree');
+
+    const targetCode = normalizeRoomCode(inputCode ? inputCode.value : '');
+    const n = nameInput ? nameInput.value.trim() : '';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    const d = deptInput ? deptInput.value : '';
+    const y = yearInput ? yearInput.value : '';
+
+    if (!targetCode) {
+        showAlert('error', 'INVALID CODE', 'Please enter a valid Team Code.');
+        return false;
+    }
+    if (!n || n.length < 2) {
+        showAlert('error', 'NAME REQUIRED', 'Please enter your full name (at least 2 characters).');
+        return false;
+    }
+    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+        showAlert('error', 'INVALID PHONE', 'Please enter a valid 10-digit Indian phone number.');
+        return false;
+    }
+    if (!d) {
+        showAlert('error', 'SELECT DEPARTMENT', 'Please select your department.');
+        return false;
+    }
+    if (!y) {
+        showAlert('error', 'SELECT YEAR', 'Please select your academic year.');
+        return false;
+    }
+    if (agreeInput && !agreeInput.checked) {
+        showAlert('error', 'RULES AGREEMENT', 'Please agree to the TechChase Rules and Regulations.');
+        return false;
+    }
+
+    let roomData = await fetchRoomData(targetCode);
+    if (!roomData) {
+        showAlert('error', 'TEAM NOT FOUND', `Team code ${targetCode} was not found. Please verify.`);
+        return false;
+    }
+
+    let pSlot = 1;
+    const existingP = (roomData.players || []).find(p => p.name.toUpperCase() === n.toUpperCase());
+    if (existingP) {
+        pSlot = existingP.slot;
+    } else {
+        if ((roomData.players || []).length >= 4) {
+            showAlert('error', 'TEAM FULL', `This team already has 4 players registered.`);
+            return false;
+        }
+        pSlot = (roomData.players || []).length + 1;
+        const newP = { id: 'player-' + pSlot, slot: pSlot, name: n, dept: d, isHost: false, level1Time: null, level1Status: 'PENDING', level2Time: null, level2Status: 'PENDING', level3BossTime: null };
+        roomData.players.push(newP);
+    }
+
+    activeRoom = roomData;
+    saveAndBroadcastRoom(activeRoom);
+    subscribeToRoom(targetCode);
+
+    const agId = 'AG-' + Math.floor(1000 + Math.random() * 9000);
+    const token = 'agent-' + Date.now();
+    sessionPlayer = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, roomCode: targetCode, playerSlot: pSlot, playerId: 'player-' + pSlot, isHost: false };
+    try {
+        localStorage.setItem('tc_player', JSON.stringify(sessionPlayer));
+        sessionStorage.setItem('tc_player_session', JSON.stringify(sessionPlayer));
+        localStorage.setItem('tc_token', token);
+    } catch(e) {}
+    if (typeof API !== 'undefined') API.token = token;
+
+    if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
+
+    updateLobbySlots(activeRoom);
+    openModal('modal-room-lobby');
+    return false;
+}
+window.handleJoinTeamSubmit = handleJoinTeamSubmit;
 
 function initRoomUI() {
-    const btnCreate = document.getElementById('btn-mode-create');
-    const btnJoin = document.getElementById('btn-mode-join');
-
-    btnCreate?.addEventListener('click', () => setRoomMode('CREATE'));
-    btnJoin?.addEventListener('click', () => setRoomMode('JOIN'));
-
     document.getElementById('btn-copy-code')?.addEventListener('click', () => {
         if (activeRoom && activeRoom.roomCode) {
             navigator.clipboard?.writeText(activeRoom.roomCode);
@@ -642,6 +885,13 @@ function initRoomUI() {
     });
 
     document.getElementById('btn-start-tournament')?.addEventListener('click', () => {
+        if (!activeRoom) return;
+        activeRoom.status = 'LEVEL1';
+        saveAndBroadcastRoom(activeRoom);
+        window.location.href = './level1.html';
+    });
+
+    document.getElementById('btn-force-start')?.addEventListener('click', () => {
         if (!activeRoom) return;
         activeRoom.status = 'LEVEL1';
         saveAndBroadcastRoom(activeRoom);
@@ -701,8 +951,33 @@ function saveAndBroadcastRoom(room) {
 
 function updateLobbySlots(room) {
     if (!room) return;
+
+    const curPlayer = getLocalPlayer();
+    const firstPlayer = (room.players || [])[0];
+    let isHost = false;
+
+    if (curPlayer) {
+        if (curPlayer.isHost === true || curPlayer.playerSlot === 1 || curPlayer.playerId === 'player-1') {
+            isHost = true;
+        } else if (firstPlayer && curPlayer.name && firstPlayer.name.toUpperCase() === curPlayer.name.toUpperCase()) {
+            isHost = true;
+        }
+    } else {
+        isHost = true;
+    }
+
     const codeBadge = document.getElementById('room-code-badge');
     if (codeBadge) codeBadge.textContent = 'CODE: ' + room.roomCode;
+
+    const roleBadge = document.getElementById('user-role-badge');
+    if (roleBadge) {
+        roleBadge.textContent = isHost ? '👑 YOUR ROLE: HOST' : '👤 YOUR ROLE: TEAM MEMBER';
+        roleBadge.style.color = isHost ? '#00f0ff' : '#fbbf24';
+    }
+
+    const playersCount = (room.players || []).length;
+    const slotsBadge = document.getElementById('room-slots-badge');
+    if (slotsBadge) slotsBadge.textContent = `PLAYERS: ${playersCount} / 4`;
 
     for (let i = 1; i <= 4; i++) {
         const slotEl = document.getElementById('slot-p' + i);
@@ -732,112 +1007,51 @@ function updateLobbySlots(room) {
             }
         }
     }
-}
 
-/* ══ FORM SUBMIT & START MISSION ══ */
-async function handleStartMission(e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
-    if (!validateAll()) { AUDIO.sfxError(); return false; }
+    // Controls display logic: Host vs Non-Host
+    const hostControls = document.getElementById('host-controls');
+    const memberControls = document.getElementById('member-controls');
+    const startBtn = document.getElementById('btn-start-tournament');
+    const forceStartBtn = document.getElementById('btn-force-start');
+    const memberStatusText = document.getElementById('member-status-text');
 
-    const n = document.getElementById('playerName').value.trim();
-    const d = document.getElementById('department').value;
-    const y = document.getElementById('year').value;
-    const phone = document.getElementById('phone').value.trim();
-    const joinCodeInput = document.getElementById('joinRoomCode');
-    const rawJoinCode = joinCodeInput ? joinCodeInput.value : '';
-    const joinCode = normalizeRoomCode(rawJoinCode);
+    if (isHost) {
+        if (hostControls) hostControls.style.display = 'block';
+        if (memberControls) memberControls.style.display = 'none';
 
-    if (roomMode === 'JOIN' && (!joinCode || joinCode.length < 4)) {
-        AUDIO.sfxError();
-        showAlert('error', 'INVALID ROOM CODE', 'Please enter a valid room code (e.g. VT-8921 or 8921)');
-        return false;
-    }
-
-    AUDIO.sfxSuccess();
-    const btn = document.getElementById('startBtn'), label = document.getElementById('btn-label');
-    if (btn) btn.disabled = true;
-    if (label) label.textContent = 'AUTHENTICATING…';
-
-    try {
-        const agId = 'AG-' + Math.floor(1000 + Math.random() * 9000);
-        const token = 'agent-' + Date.now();
-
-        let targetCode = joinCode;
-        let pSlot = 1;
-
-        if (roomMode === 'CREATE') {
-            targetCode = 'VT-' + Math.floor(1000 + Math.random() * 9000);
-            activeRoom = {
-                roomCode: targetCode,
-                status: 'LOBBY',
-                players: [
-                    { id: 'player-1', slot: 1, name: n, dept: d, isHost: true, level1Time: null, level1Status: 'PENDING', level2Time: null, level2Status: 'PENDING', level3BossTime: null }
-                ],
-                level1FinishCount: 0,
-                level2FinishCount: 0,
-                winnerName: null
-            };
-            pSlot = 1;
-        } else {
-            let roomData = await fetchRoomData(joinCode);
-            if (!roomData) {
-                // Generate room if joining offline demo
-                roomData = {
-                    roomCode: joinCode,
-                    status: 'LOBBY',
-                    players: [],
-                    level1FinishCount: 0,
-                    level2FinishCount: 0,
-                    winnerName: null
-                };
-            }
-            const existingP = (roomData.players || []).find(p => p.name.toUpperCase() === n.toUpperCase());
-            if (existingP) {
-                pSlot = existingP.slot;
+        if (startBtn) {
+            if (playersCount >= 4) {
+                startBtn.disabled = false;
+                startBtn.removeAttribute('disabled');
+                startBtn.textContent = '🚀 BEGIN GAME (ALL 4 PLAYERS READY) ›';
+                startBtn.style.opacity = '1';
+                startBtn.style.cursor = 'pointer';
+                startBtn.style.pointerEvents = 'auto';
+                startBtn.style.background = 'linear-gradient(135deg, #00f0ff, #3b82f6)';
+                startBtn.style.boxShadow = '0 0 20px rgba(0,240,255,0.6)';
+                if (forceStartBtn) forceStartBtn.style.display = 'none';
             } else {
-                if (roomData.players.length >= 4) {
-                    showAlert('error', 'ROOM FULL', 'This room already has 4 players registered.');
-                    return false;
-                }
-                pSlot = roomData.players.length + 1;
-                const newP = { id: 'player-' + pSlot, slot: pSlot, name: n, dept: d, isHost: false, level1Time: null, level1Status: 'PENDING', level2Time: null, level2Status: 'PENDING', level3BossTime: null };
-                roomData.players.push(newP);
+                startBtn.disabled = true;
+                startBtn.setAttribute('disabled', 'disabled');
+                startBtn.textContent = `WAITING FOR ALL 4 PLAYERS TO JOIN (${playersCount}/4)...`;
+                startBtn.style.opacity = '0.5';
+                startBtn.style.cursor = 'not-allowed';
+                startBtn.style.pointerEvents = 'none';
+                startBtn.style.background = 'rgba(255,255,255,0.1)';
+                startBtn.style.boxShadow = 'none';
+                if (forceStartBtn) forceStartBtn.style.display = 'block';
             }
-            activeRoom = roomData;
-            targetCode = joinCode;
         }
-
-        saveAndBroadcastRoom(activeRoom);
-        subscribeToRoom(targetCode);
-
-        const playerObj = { name: n, roll: agId, dept: d, year: y, phone: phone, currentLvl: 1, roomCode: targetCode, playerSlot: pSlot, playerId: 'player-' + pSlot };
-        localStorage.setItem('tc_player', JSON.stringify(playerObj));
-        localStorage.setItem('tc_token', token);
-        if (typeof API !== 'undefined') API.token = token;
-
-        // Open Room Lobby modal
-        updateLobbySlots(activeRoom);
-        openModal('modal-room-lobby');
-    } catch (err) {
-        AUDIO.sfxError();
-        showAlert('error', 'AUTHENTICATION FAILED', err.message || 'Error initializing agent.');
-    } finally {
-        if (btn) btn.disabled = false;
-        if (label) label.textContent = 'START MISSION';
+    } else {
+        if (hostControls) hostControls.style.display = 'none';
+        if (memberControls) memberControls.style.display = 'block';
+        if (memberStatusText) {
+            memberStatusText.textContent = `⏳ WAITING FOR HOST TO START THE GAME (${playersCount}/4 PLAYERS CONNECTED)...`;
+        }
     }
-    return false;
 }
 
 
-const lForm = document.getElementById('loginForm');
-if (lForm) {
-    lForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleStartMission(e);
-        return false;
-    });
-}
 
 /* ══ EXIT ══ */
 function exitSystem() {

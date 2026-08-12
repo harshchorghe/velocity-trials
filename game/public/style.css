@@ -4247,3 +4247,32 @@ textarea,
         display: none !important;
     }
 }
+
+/* ══════════════════════════════
+   CREATE / JOIN TEAM CARDS & LOBBY STYLES
+══════════════════════════════ */
+.auth-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.room-mode-btn {
+    transition: all 0.25s ease;
+}
+
+.room-mode-btn:hover {
+    filter: brightness(1.2);
+}
+
+.room-slot {
+    transition: all 0.3s ease;
+}
+
+.room-slot.active {
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+}
+
+#btn-start-tournament:disabled {
+    cursor: not-allowed !important;
+    opacity: 0.6 !important;
+    box-shadow: none !important;
+}
