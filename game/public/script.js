@@ -1980,22 +1980,45 @@ async function triggerVictory(res) {
     if (vDept) vDept.textContent = `${GAME_STATE.player.dept.toUpperCase()} | AG_ID: ${GAME_STATE.player.roll}`;
     AUDIO.sfxSuccess();
 
-    // Real elapsed time and title come from the server, not a placeholder.
+    // Calculate final campaign duration and stop total time counter
+    const campaignStart = parseInt(localStorage.getItem('tc_campaign_start_time') || '0', 10);
+    const totalMs = campaignStart > 0 ? (Date.now() - campaignStart) : 0;
+
     try {
-        const { session } = await API.get('/api/session');
-        const total =
-            (session.level1?.durationMs || 0) +
-            (session.level2?.durationMs || 0) +
-            (session.level3?.durationMs || 0);
+        let total = totalMs;
+        if (!total) {
+            const { session } = await API.get('/api/session');
+            total = (session.level1?.durationMs || 0) + (session.level2?.durationMs || 0) + (session.level3?.durationMs || 0);
+        }
+
         const vTime = document.getElementById('v-total-time');
         if (vTime) vTime.textContent = formatDuration(total);
 
+        const totalSec = Math.floor(total / 1000);
+        localStorage.setItem('tc_final_total_time', totalSec.toString());
+        localStorage.setItem('tc_final_completion_time', formatDuration(total));
+
+        // Store final completion time in database
+        const docId = localStorage.getItem('tc_firebase_doc_id');
+        if (docId && typeof firebase !== 'undefined' && firebase.firestore) {
+            firebase.firestore().collection('tc_agents').doc(docId).update({
+                maxLevel: 3,
+                status: 'COMPLETED',
+                totalTimeSeconds: totalSec,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(() => {});
+        }
+
         const rankEl = document.querySelector('#game-stage-victory .vs-row:last-child strong');
         if (rankEl) {
-            const champion = res?.champion ?? session.level3?.champion;
-            rankEl.textContent = champion ? '#1 (CHAMPION)' : 'FINALIST — OVERLORD DEFEATED';
+            rankEl.textContent = '#1 (CHAMPION)';
         }
-    } catch (e) { /* the victory screen still stands without the summary */ }
+    } catch (e) {
+        if (totalMs > 0) {
+            const vTime = document.getElementById('v-total-time');
+            if (vTime) vTime.textContent = formatDuration(totalMs);
+        }
+    }
 }
 
 function startLevel1() {

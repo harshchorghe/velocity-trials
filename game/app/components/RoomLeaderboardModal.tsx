@@ -35,8 +35,22 @@ export function RoomLeaderboardModal({
     } catch (e) {}
   }, [roomCode]);
 
+  // Sort players by status and least total time (ascending)
+  const rawList = roomData?.players ? [...roomData.players] : null;
+  if (rawList) {
+    rawList.sort((a: any, b: any) => {
+      const isCompA = a.status === "COMPLETED" || a.level3Status === "QUALIFIED" || a.isWinner;
+      const isCompB = b.status === "COMPLETED" || b.level3Status === "QUALIFIED" || b.isWinner;
+      if (isCompA && !isCompB) return -1;
+      if (!isCompA && isCompB) return 1;
+      const timeA = a.totalTimeSeconds || a.level3BossTime || a.level2Time || 999999;
+      const timeB = b.totalTimeSeconds || b.level3BossTime || b.level2Time || 999999;
+      return timeA - timeB;
+    });
+  }
+
   // Fallback players if room data is not found
-  const players = roomData?.players || [
+  const players = rawList || [
     { slot: 1, name: winnerName || "Player 1 (Champion)", level3BossTime: l3ElapsedTimeSec, isWinner: true },
     { slot: 2, name: "Player 2 (Finalist)", level3BossTime: l3ElapsedTimeSec + 14.5 },
     { slot: 3, name: "Player 3", level2Status: "ELIMINATED" },

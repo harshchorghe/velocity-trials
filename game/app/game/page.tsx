@@ -102,6 +102,8 @@ export default function Home() {
     gameState.setCityScene(scene);
   };
 
+  const [finalTotalTimeSec, setFinalTotalTimeSec] = useState<number | null>(null);
+
   const handleL3BattleStateChange = useCallback((state: "FIGHTING" | "VICTORY" | "DEFEAT", elapsedSec: number) => {
     setL3BattleState(state);
     setL3ElapsedTimeSec(elapsedSec);
@@ -111,14 +113,46 @@ export default function Home() {
       const start = parseInt(localStorage.getItem("tc_campaign_start_time") || "0", 10);
       const totalSec = start > 0 ? Math.floor((Date.now() - start) / 1000) : elapsedSec;
 
-      if (docId) {
-        if (state === "VICTORY") {
+      if (state === "VICTORY") {
+        // Freeze total time counter immediately upon completing Level 3
+        setFinalTotalTimeSec(totalSec);
+        setCampaignElapsedSec(totalSec);
+
+        localStorage.setItem("tc_final_total_time", totalSec.toString());
+        localStorage.setItem("tc_final_completion_time", formatTime(totalSec));
+
+        // Save to Firebase Database
+        if (docId) {
           updateAgentProgressInFirebase(docId, {
             maxLevel: 3,
             status: "COMPLETED",
             totalTimeSeconds: totalSec,
           });
-        } else if (state === "DEFEAT") {
+        }
+
+        // Save to Local Room Session Database
+        try {
+          const rCode = localStorage.getItem("vt_current_room_code");
+          const rStr = localStorage.getItem("vt_current_room") || (rCode ? localStorage.getItem("vt_room_" + rCode) : null);
+          if (rStr) {
+            const rData = JSON.parse(rStr);
+            if (rData && rData.players) {
+              const pSlot = JSON.parse(localStorage.getItem("tc_player") || "{}").playerSlot || 1;
+              const p = rData.players.find((x: any) => x.slot === pSlot || x.id === "player-1");
+              if (p) {
+                p.totalTimeSeconds = totalSec;
+                p.level3BossTime = elapsedSec;
+                p.status = "COMPLETED";
+                p.completionTimeFormatted = formatTime(totalSec);
+              }
+              rData.winnerName = rData.winnerName || p?.name || "Agent";
+              localStorage.setItem("vt_current_room", JSON.stringify(rData));
+              if (rCode) localStorage.setItem("vt_room_" + rCode, JSON.stringify(rData));
+            }
+          }
+        } catch (e) {}
+      } else if (state === "DEFEAT") {
+        if (docId) {
           updateAgentProgressInFirebase(docId, {
             maxLevel: 3,
             status: "ELIMINATED",
@@ -132,6 +166,7 @@ export default function Home() {
   const handleResetLevel3 = () => {
     setL3BattleState("FIGHTING");
     setL3ElapsedTimeSec(0);
+    setFinalTotalTimeSec(null);
     setL3ResetSignal((s) => s + 1);
   };
 
@@ -151,6 +186,9 @@ export default function Home() {
   const [campaignElapsedSec, setCampaignElapsedSec] = useState<number>(0);
 
   useEffect(() => {
+    // Stop running total time timer when victory is reached
+    if (l3BattleState === "VICTORY" || finalTotalTimeSec !== null) return;
+
     const updateCampaignTime = () => {
       if (typeof window !== "undefined") {
         const start = parseInt(localStorage.getItem("tc_campaign_start_time") || "0", 10);
@@ -162,7 +200,7 @@ export default function Home() {
     updateCampaignTime();
     const interval = setInterval(updateCampaignTime, 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [l3BattleState, finalTotalTimeSec]);
 
   const activePlayer = gameState.players[activeControlledId] || gameState.players["player-1"];
 
@@ -553,24 +591,6 @@ export default function Home() {
               >
                 🏆 TOURNAMENT LEADERBOARD
               </button>
-              <button
-                onClick={handleResetLevel3}
-                style={{
-                  flex: 1,
-                  background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
-                  border: "none",
-                  borderRadius: "10px",
-                  padding: "14px 24px",
-                  color: "#ffffff",
-                  fontSize: "15px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: "0 0 25px rgba(34, 197, 94, 0.6)",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                ⚔️ PLAY AGAIN
-              </button>
             </div>
           </div>
         </div>
@@ -582,10 +602,6 @@ export default function Home() {
           l3ElapsedTimeSec={l3ElapsedTimeSec}
           winnerName={activePlayer?.name}
           onClose={() => setShowLeaderboard(false)}
-          onRestart={() => {
-            setShowLeaderboard(false);
-            handleResetLevel3();
-          }}
         />
       )}
 

@@ -18,8 +18,8 @@ export function Level3HUD({
   playerHP = 100,
   playerMaxHP = 100,
   playerLives = 1,
-  astraHP = 250,
-  astraMaxHP = 250,
+  astraHP = 100,
+  astraMaxHP = 100,
   onAttack,
 }: Level3HUDProps) {
   const player = gameState.players[qualifiedPlayerId];

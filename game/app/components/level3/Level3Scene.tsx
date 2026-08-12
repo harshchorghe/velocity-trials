@@ -43,7 +43,7 @@ const l3BattleStore = {
   status: "FIGHTING" as "FIGHTING" | "VICTORY" | "DEFEAT",
   playerHP: 100,
   playerLives: 1,
-  astraHP: 250,
+  astraHP: 100,
 };
 
 export function Level3Scene({ qualifiedPlayerId, onBattleStateChange, resetSignal }: Level3SceneProps) {
@@ -120,12 +120,12 @@ export function Level3Scene({ qualifiedPlayerId, onBattleStateChange, resetSigna
     l3BattleStore.status = "FIGHTING";
     l3BattleStore.playerHP = 100;
     l3BattleStore.playerLives = 1;
-    l3BattleStore.astraHP = 250;
+    l3BattleStore.astraHP = 100;
     battleStateRef.current = "FIGHTING";
 
     setPlayerHP(100);
     setPlayerLives(1);
-    setAstraHP(250);
+    setAstraHP(100);
     setElapsedTimeSec(0);
     updateBattleState("FIGHTING", 0);
 
@@ -290,7 +290,7 @@ export function Level3Scene({ qualifiedPlayerId, onBattleStateChange, resetSigna
               playerMaxHP={100}
               playerLives={playerLives}
               astraHP={astraHP}
-              astraMaxHP={250}
+              astraMaxHP={100}
               onAttack={handlePlayerAttack}
             />
           </div>
