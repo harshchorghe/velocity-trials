@@ -1112,10 +1112,16 @@ async function submitFinalGestureCode() {
         }
 
         try {
-            localStorage.setItem('vt_room_' + roomData.roomCode, JSON.stringify(roomData));
-            localStorage.setItem('vt_current_room', JSON.stringify(roomData));
+            const cleanRoom = JSON.parse(JSON.stringify(roomData));
+            localStorage.setItem('vt_room_' + roomData.roomCode, JSON.stringify(cleanRoom));
+            localStorage.setItem('vt_current_room', JSON.stringify(cleanRoom));
             const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vt_room_channel') : null;
-            if (bc) bc.postMessage(roomData);
+            if (bc) bc.postMessage(cleanRoom);
+
+            const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
+            if (fs && roomData.roomCode) {
+                fs.collection('vt_rooms').doc(roomData.roomCode.trim().toUpperCase()).set(cleanRoom, { merge: true }).catch(() => {});
+            }
         } catch(e) {}
     }
 

@@ -262,7 +262,10 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
     const vid = document.getElementById('intro-video');
     const pfill = document.getElementById('intro-pfill');
     const skip = document.getElementById('intro-skip');
-    if (!intro || !vid || !pfill || !skip) return;
+    if (!intro || !vid || !pfill || !skip) {
+        if (typeof startBoot === 'function') startBoot();
+        return;
+    }
     const DURATION = 7000; // 7 seconds intro
 
     // Try to play intro video (may be blocked by autoplay policy)
@@ -529,6 +532,45 @@ let roomMode = 'CREATE'; // 'CREATE' or 'JOIN'
 let activeRoom = null;
 let roomSyncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vt_room_channel') : null;
 let firestoreUnsub = null;
+let sessionPlayer = null;
+
+function getLocalPlayer() {
+    if (sessionPlayer) return sessionPlayer;
+    try {
+        const ses = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tc_player_session') : null;
+        if (ses) {
+            sessionPlayer = JSON.parse(ses);
+            return sessionPlayer;
+        }
+    } catch(e) {}
+    try {
+        const local = typeof localStorage !== 'undefined' ? localStorage.getItem('tc_player') : null;
+        if (local) {
+            sessionPlayer = JSON.parse(local);
+            return sessionPlayer;
+        }
+    } catch(e) {}
+    return null;
+}
+
+// Multi-Tab Local Storage Cross-Tab Listener
+window.addEventListener('storage', (e) => {
+    if (!e.newValue) return;
+    if (e.key === 'vt_current_room' || (e.key && e.key.startsWith('vt_room_'))) {
+        try {
+            const room = JSON.parse(e.newValue);
+            const curP = getLocalPlayer();
+            if (room && room.roomCode) {
+                const myCode = curP && curP.roomCode ? normalizeRoomCode(curP.roomCode) : (activeRoom ? normalizeRoomCode(activeRoom.roomCode) : '');
+                if (!myCode || normalizeRoomCode(room.roomCode) === myCode) {
+                    activeRoom = room;
+                    updateLobbySlots(room);
+                    checkAndRedirectLevel1(room);
+                }
+            }
+        } catch(err) {}
+    }
+});
 
 function normalizeRoomCode(raw) {
     if (!raw) return '';
