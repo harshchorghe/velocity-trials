@@ -565,27 +565,154 @@ async function fetchRoomData(code) {
     return null;
 }
 
+function checkAndRedirectLevel1(room) {
+    if (!room || room.status !== 'LEVEL1') return;
+    const path = window.location.pathname || '';
+    if (!path.includes('level1')) {
+        console.log('[RoomSync] LEVEL1 status active! Redirecting to Level 1...');
+        window.location.href = './level1.html';
+    }
+}
+
 function subscribeToRoom(code) {
     const norm = normalizeRoomCode(code);
     if (!norm) return;
 
     const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
     if (fs) {
-        if (firestoreUnsub) firestoreUnsub();
+        if (firestoreUnsub) {
+            try { firestoreUnsub(); } catch(e) {}
+        }
         try {
+            console.log('[subscribeToRoom] Subscribing to Firestore room:', norm);
             firestoreUnsub = fs.collection('vt_rooms').doc(norm).onSnapshot(snapshot => {
                 if (snapshot && snapshot.exists) {
                     const room = snapshot.data();
                     activeRoom = room;
                     try { localStorage.setItem('vt_room_' + norm, JSON.stringify(room)); } catch(e) {}
+                    try { localStorage.setItem('vt_current_room', JSON.stringify(room)); } catch(e) {}
                     updateLobbySlots(room);
-                    if (room.status === 'LEVEL1' && !window.location.pathname.endsWith('level1.html')) {
-                        window.location.href = './level1.html';
-                    }
+                    checkAndRedirectLevel1(room);
                 }
+            }, err => {
+                console.warn('[subscribeToRoom] Snapshot error:', err);
             });
-        } catch (e) {}
+        } catch (e) {
+            console.error('[subscribeToRoom] Error:', e);
+        }
     }
+}
+
+async function saveAndBroadcastRoom(room) {
+    if (!room || !room.roomCode) return;
+    const norm = normalizeRoomCode(room.roomCode);
+    room.roomCode = norm;
+
+    // Convert to clean JSON object stripping undefined fields that cause Firestore errors
+    const cleanRoom = JSON.parse(JSON.stringify(room));
+    cleanRoom.roomCode = norm;
+
+    try {
+        localStorage.setItem('vt_room_' + norm, JSON.stringify(cleanRoom));
+        localStorage.setItem('vt_current_room', JSON.stringify(cleanRoom));
+        if (roomSyncChannel) roomSyncChannel.postMessage(cleanRoom);
+
+        const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
+        if (fs) {
+            await fs.collection('vt_rooms').doc(norm).set(cleanRoom, { merge: true });
+            console.log('[saveAndBroadcastRoom] Firestore write SUCCESS:', norm, cleanRoom.status);
+        }
+    } catch (e) {
+        console.error('[saveAndBroadcastRoom] Firestore error:', e);
+    }
+}
+
+async function startTournamentGame() {
+    let p = getLocalPlayer();
+    let code = (activeRoom && activeRoom.roomCode) || (p && p.roomCode);
+    if (!code) {
+        try {
+            const cur = localStorage.getItem('vt_current_room');
+            if (cur) {
+                const parsed = JSON.parse(cur);
+                if (parsed && parsed.roomCode) code = parsed.roomCode;
+            }
+        } catch(e) {}
+    }
+    if (!code) code = 'VT-8921';
+
+    // Fetch fresh room data from Firestore first so we preserve all 4 players!
+    let room = await fetchRoomData(code);
+    if (!room) room = activeRoom;
+    if (!room) {
+        room = {
+            roomCode: code,
+            status: 'LOBBY',
+            players: [{ id: 'player-1', slot: 1, name: (p && p.name) || 'HOST', isHost: true }]
+        };
+    }
+
+    room.status = 'LEVEL1';
+    activeRoom = room;
+
+    await saveAndBroadcastRoom(room);
+
+    if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
+
+    window.location.href = './level1.html';
+}
+window.startTournamentGame = startTournamentGame;
+
+function initRoomUI() {
+    const curP = getLocalPlayer();
+    if (curP && curP.roomCode) {
+        subscribeToRoom(curP.roomCode);
+    }
+
+    document.getElementById('btn-copy-code')?.addEventListener('click', () => {
+        if (activeRoom && activeRoom.roomCode) {
+            navigator.clipboard?.writeText(activeRoom.roomCode);
+            showAlert('success', 'ROOM CODE COPIED', `Code ${activeRoom.roomCode} copied to clipboard!`);
+        }
+    });
+
+    document.getElementById('btn-start-tournament')?.addEventListener('click', async (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        await startTournamentGame();
+    });
+
+    document.getElementById('btn-force-start')?.addEventListener('click', async (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        await startTournamentGame();
+    });
+
+    if (roomSyncChannel) {
+        roomSyncChannel.onmessage = (e) => {
+            if (e.data && e.data.roomCode) {
+                const p = getLocalPlayer();
+                const roomCodeMatch = p && p.roomCode && normalizeRoomCode(e.data.roomCode) === normalizeRoomCode(p.roomCode);
+                if (roomCodeMatch || (activeRoom && e.data.roomCode === activeRoom.roomCode)) {
+                    activeRoom = e.data;
+                    updateLobbySlots(activeRoom);
+                    checkAndRedirectLevel1(activeRoom);
+                }
+            }
+        };
+    }
+
+    // Polling fallback every 400ms for instant real-time reaction
+    setInterval(async () => {
+        const p = getLocalPlayer();
+        const codeToPoll = (activeRoom && activeRoom.roomCode) || (p && p.roomCode);
+        if (codeToPoll) {
+            const fresh = await fetchRoomData(codeToPoll);
+            if (fresh) {
+                activeRoom = fresh;
+                updateLobbySlots(activeRoom);
+                checkAndRedirectLevel1(activeRoom);
+            }
+        }
+    }, 400);
 }
 
 function switchCardMode(mode) {
@@ -897,105 +1024,7 @@ async function handleJoinTeamSubmit() {
 }
 window.handleJoinTeamSubmit = handleJoinTeamSubmit;
 
-async function saveAndBroadcastRoom(room) {
-    if (!room || !room.roomCode) return;
-    const norm = normalizeRoomCode(room.roomCode);
-    room.roomCode = norm;
-    try {
-        localStorage.setItem('vt_room_' + norm, JSON.stringify(room));
-        localStorage.setItem('vt_current_room', JSON.stringify(room));
-        if (roomSyncChannel) roomSyncChannel.postMessage(room);
 
-        const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
-        if (fs) {
-            await fs.collection('vt_rooms').doc(norm).set(room, { merge: true });
-        }
-    } catch (e) {
-        console.warn('[saveAndBroadcastRoom] error:', e);
-    }
-}
-
-async function startTournamentGame() {
-    let room = activeRoom;
-    if (!room) {
-        try {
-            const cur = localStorage.getItem('vt_current_room');
-            if (cur) room = JSON.parse(cur);
-        } catch(e) {}
-    }
-    if (!room) {
-        const p = getLocalPlayer() || {};
-        room = {
-            roomCode: p.roomCode || 'VT-8921',
-            status: 'LOBBY',
-            players: [{ id: 'player-1', slot: 1, name: p.name || 'HOST', isHost: true }]
-        };
-    }
-
-    room.status = 'LEVEL1';
-    await saveAndBroadcastRoom(room);
-
-    if (typeof AUDIO !== 'undefined' && AUDIO.sfxSuccess) AUDIO.sfxSuccess();
-
-    window.location.href = './level1.html';
-}
-window.startTournamentGame = startTournamentGame;
-
-function initRoomUI() {
-    const curP = getLocalPlayer();
-    if (curP && curP.roomCode) {
-        subscribeToRoom(curP.roomCode);
-    }
-
-    document.getElementById('btn-copy-code')?.addEventListener('click', () => {
-        if (activeRoom && activeRoom.roomCode) {
-            navigator.clipboard?.writeText(activeRoom.roomCode);
-            showAlert('success', 'ROOM CODE COPIED', `Code ${activeRoom.roomCode} copied to clipboard!`);
-        }
-    });
-
-    document.getElementById('btn-start-tournament')?.addEventListener('click', async (e) => {
-        if (e) { e.preventDefault(); e.stopPropagation(); }
-        await startTournamentGame();
-    });
-
-    document.getElementById('btn-force-start')?.addEventListener('click', async (e) => {
-        if (e) { e.preventDefault(); e.stopPropagation(); }
-        await startTournamentGame();
-    });
-
-    if (roomSyncChannel) {
-        roomSyncChannel.onmessage = (e) => {
-            if (e.data && e.data.roomCode) {
-                const p = getLocalPlayer();
-                const roomCodeMatch = p && p.roomCode && normalizeRoomCode(e.data.roomCode) === normalizeRoomCode(p.roomCode);
-                if (roomCodeMatch || (activeRoom && e.data.roomCode === activeRoom.roomCode)) {
-                    activeRoom = e.data;
-                    updateLobbySlots(activeRoom);
-                    if (activeRoom.status === 'LEVEL1' && !window.location.pathname.endsWith('level1.html')) {
-                        window.location.href = './level1.html';
-                    }
-                }
-            }
-        };
-    }
-
-    // Polling fallback
-    setInterval(async () => {
-        const p = getLocalPlayer();
-        const codeToPoll = (activeRoom && activeRoom.roomCode) || (p && p.roomCode);
-        if (codeToPoll) {
-            const fresh = await fetchRoomData(codeToPoll);
-            if (fresh) {
-                activeRoom = fresh;
-                updateLobbySlots(activeRoom);
-                if (activeRoom.status === 'LEVEL1' && !window.location.pathname.endsWith('level1.html')) {
-                    window.location.href = './level1.html';
-                }
-            }
-        }
-    }, 1000);
-}
 
 function updateLobbySlots(room) {
     if (!room) return;
