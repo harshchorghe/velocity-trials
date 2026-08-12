@@ -34,10 +34,33 @@ export interface AgentData {
   dept?: string;
   year?: string;
   phone?: string;
+  maxLevel?: number; // 1, 2, or 3
+  status?: string; // 'COMPLETED' | 'QUALIFIED' | 'TIME_EXPIRED' | 'IN_PROGRESS'
+  totalTimeSeconds?: number;
   score?: number;
   crystals?: number;
   timeFormatted?: string;
   createdAt?: any;
+  updatedAt?: any;
+}
+
+export function sortAgentsForLeaderboard(agents: AgentData[]): AgentData[] {
+  return [...agents].sort((a, b) => {
+    // 1. COMPLETED status comes first
+    const aCompleted = a.status === "COMPLETED" ? 1 : 0;
+    const bCompleted = b.status === "COMPLETED" ? 1 : 0;
+    if (aCompleted !== bCompleted) return bCompleted - aCompleted;
+
+    // 2. Higher Level Reached comes next
+    const aLvl = a.maxLevel || 1;
+    const bLvl = b.maxLevel || 1;
+    if (aLvl !== bLvl) return bLvl - aLvl;
+
+    // 3. Lowest Total Campaign Time (ascending) — most critical!
+    const aTime = typeof a.totalTimeSeconds === "number" && a.totalTimeSeconds >= 0 ? a.totalTimeSeconds : 999999;
+    const bTime = typeof b.totalTimeSeconds === "number" && b.totalTimeSeconds >= 0 ? b.totalTimeSeconds : 999999;
+    return aTime - bTime;
+  });
 }
 
 export async function saveAgentToFirebase(agentData: Partial<AgentData>): Promise<string | null> {
@@ -46,16 +69,21 @@ export async function saveAgentToFirebase(agentData: Partial<AgentData>): Promis
       name: agentData.name || "Agent",
       roll: agentData.roll || "2K26",
       dept: agentData.dept || "CSE",
-      year: agentData.year || "1st Year",
+      year: agentData.year || "BE",
       phone: agentData.phone || "",
+      maxLevel: agentData.maxLevel || 1,
+      status: agentData.status || "IN_PROGRESS",
+      totalTimeSeconds: agentData.totalTimeSeconds || 0,
       score: agentData.score || 0,
       crystals: agentData.crystals || 0,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
 
     const docRef = await addDoc(collection(db, AGENTS_COL), payload);
 
     try {
+      localStorage.setItem("tc_firebase_doc_id", docRef.id);
       const cached = JSON.parse(localStorage.getItem("tc_agents") || "[]");
       cached.push({ ...payload, id: docRef.id });
       localStorage.setItem("tc_agents", JSON.stringify(cached));
@@ -68,27 +96,44 @@ export async function saveAgentToFirebase(agentData: Partial<AgentData>): Promis
   }
 }
 
-export async function updateAgentScoreInFirebase(docId: string, score: number, crystals = 0): Promise<boolean> {
+export async function updateAgentProgressInFirebase(
+  docId: string,
+  progress: {
+    maxLevel?: number;
+    status?: string;
+    totalTimeSeconds?: number;
+    score?: number;
+    crystals?: number;
+  }
+): Promise<boolean> {
   if (!docId) return false;
   try {
     const agentRef = doc(db, AGENTS_COL, docId);
-    await updateDoc(agentRef, { score, crystals });
+    await updateDoc(agentRef, {
+      ...progress,
+      updatedAt: serverTimestamp(),
+    });
     return true;
   } catch (err) {
-    console.error("[Firebase] updateScore error:", err);
+    console.error("[Firebase] updateAgentProgress error:", err);
     return false;
   }
 }
 
+export async function updateAgentScoreInFirebase(docId: string, score: number, crystals = 0): Promise<boolean> {
+  return updateAgentProgressInFirebase(docId, { score, crystals });
+}
+
 export async function getAgentsFromFirebase(): Promise<AgentData[]> {
   try {
-    const q = query(collection(db, AGENTS_COL), orderBy("score", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as AgentData) }));
+    const snap = await getDocs(collection(db, AGENTS_COL));
+    const agents = snap.docs.map((d) => ({ id: d.id, ...(d.data() as AgentData) }));
+    return sortAgentsForLeaderboard(agents);
   } catch (err) {
     console.error("[Firebase] getAgents error:", err);
     try {
-      return JSON.parse(localStorage.getItem("tc_agents") || "[]");
+      const cached = JSON.parse(localStorage.getItem("tc_agents") || "[]");
+      return sortAgentsForLeaderboard(cached);
     } catch (_) {
       return [];
     }
@@ -97,17 +142,17 @@ export async function getAgentsFromFirebase(): Promise<AgentData[]> {
 
 export function onAgentsUpdate(callback: (agents: AgentData[]) => void) {
   try {
-    const q = query(collection(db, AGENTS_COL), orderBy("score", "desc"));
     return onSnapshot(
-      q,
+      collection(db, AGENTS_COL),
       (snap) => {
         const agents = snap.docs.map((d) => ({ id: d.id, ...(d.data() as AgentData) }));
-        callback(agents);
+        callback(sortAgentsForLeaderboard(agents));
       },
       (err) => {
         console.error("[Firebase] onSnapshot error:", err);
         try {
-          callback(JSON.parse(localStorage.getItem("tc_agents") || "[]"));
+          const cached = JSON.parse(localStorage.getItem("tc_agents") || "[]");
+          callback(sortAgentsForLeaderboard(cached));
         } catch (_) {
           callback([]);
         }

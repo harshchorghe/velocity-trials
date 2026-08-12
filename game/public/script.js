@@ -1089,15 +1089,26 @@ async function submitFinalGestureCode() {
 
     // Update player record in database (Firestore)
     const docId = localStorage.getItem('tc_firebase_doc_id');
-    if (typeof db !== 'undefined' && db) {
+    const campaignStart = parseInt(localStorage.getItem('tc_campaign_start_time') || '0', 10);
+    const totalSec = campaignStart > 0 ? Math.floor((Date.now() - campaignStart) / 1000) : 0;
+    const fs = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
+
+    if (fs) {
         try {
             if (docId) {
-                await db.collection(AGENTS_COL).doc(docId).update({
+                await fs.collection(window.AGENTS_COL || 'tc_agents').doc(docId).update({
                     score: 3000,
+                    maxLevel: 2,
+                    status: 'QUALIFIED',
+                    totalTimeSeconds: totalSec,
                     level1Done: true,
-                    level1Code: targetCode
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
                 });
-            } else {
+            }
+        } catch (fbErr) {
+            console.error('[Firebase] Error updating Level 1 progress:', fbErr);
+        }
+    }
                 const docRef = await db.collection(AGENTS_COL).add({
                     name: GAME_STATE.player.name || 'Agent',
                     roll: GAME_STATE.player.roll || '2K26',
@@ -1979,6 +1990,13 @@ function startLevel1() {
     }
 
     GAME_STATE.level1.remainingSeconds = 180.0;
+    if (typeof window.fetchLevelTime === 'function') {
+        window.fetchLevelTime(1).then(sec => {
+            if (sec && sec > 0) {
+                GAME_STATE.level1.remainingSeconds = sec;
+            }
+        }).catch(() => {});
+    }
 
     GAME_STATE.level1.interval = setInterval(() => {
         GAME_STATE.level1.remainingSeconds = Math.max(0, GAME_STATE.level1.remainingSeconds - 0.1);
@@ -2014,60 +2032,18 @@ function startLevel1() {
 }
 
 function playGreetingAndProceed(videoSrc, transitionFn) {
-    const overlay = document.getElementById('greet-video-overlay');
-    const video = document.getElementById('greet-video');
-    const skipBtn = document.getElementById('greet-skip');
-
-    if (!overlay || !video || !skipBtn) {
-        transitionFn();
-        return;
-    }
-
-    overlay.style.display = 'flex';
-    video.src = videoSrc;
-
-    // Fallback cleanup
-    const finish = () => {
-        video.onended = null;
-        skipBtn.onclick = null;
-        overlay.style.display = 'none';
-        video.pause();
-        transitionFn();
-    };
-
-    video.onended = finish;
-    skipBtn.onclick = finish;
-
-    video.play().catch(() => finish());
+    if (typeof transitionFn === 'function') transitionFn();
 }
 
 function proceedToLevel2() {
     const token = API.token || localStorage.getItem('tc_token') || '';
     const gameUrl = '/game' + (token ? ('?token=' + encodeURIComponent(token)) : '');
-
-    if (!document.getElementById('page-level2') && document.getElementById('game-stage-2') === null) {
-        playGreetingAndProceed('./assets/videos/intro.mp4', () => {
-            window.location.href = gameUrl;
-        });
-        return;
-    }
-
-    // Direct redirect to 3D Next.js game
     window.location.href = gameUrl;
 }
 
 function proceedToLevel3() {
     const token = API.token || localStorage.getItem('tc_token') || '';
     const gameUrl = '/game?level=3' + (token ? ('&token=' + encodeURIComponent(token)) : '');
-
-    if (!document.getElementById('page-level3') && document.getElementById('game-stage-3') === null) {
-        playGreetingAndProceed('./assets/videos/intro.mp4', () => {
-            window.location.href = gameUrl;
-        });
-        return;
-    }
-
-    // Direct redirect to 3D Next.js Level 3 game
     window.location.href = gameUrl;
 }
 

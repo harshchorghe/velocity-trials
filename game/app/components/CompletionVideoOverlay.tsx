@@ -72,57 +72,7 @@ export function CompletionVideoOverlay({
           color: "#ffffff",
         }}
       >
-        {/* Video Player Container */}
-        <div
-          style={{
-            position: "relative",
-            width: "100%",
-            borderRadius: "14px",
-            overflow: "hidden",
-            background: "#020617",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
-            marginBottom: "20px",
-            minHeight: "220px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {!videoError ? (
-            <video
-              src={videoUrl}
-              autoPlay
-              playsInline
-              controls
-              onError={() => setVideoError(true)}
-              style={{
-                width: "100%",
-                maxHeight: "360px",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                padding: "32px 24px",
-                textAlign: "center",
-                color: "#94a3b8",
-              }}
-            >
-              <div style={{ fontSize: "42px", marginBottom: "8px" }}>🎬</div>
-              <div style={{ fontWeight: 700, fontSize: "16px", color: "#f8fafc" }}>
-                Level 2 Completion Cutscene
-              </div>
-              <div style={{ fontSize: "12px", marginTop: "6px", color: "#64748b" }}>
-                Place completion video inside:{" "}
-                <code style={{ background: "rgba(255,255,255,0.1)", padding: "2px 6px", borderRadius: "4px", color: "#38bdf8" }}>
-                  public{videoUrl}
-                </code>
-              </div>
-            </div>
-          )}
-        </div>
+
 
         {/* Completion Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "8px" }}>

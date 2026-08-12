@@ -30,25 +30,31 @@ const db = window.db;
 const AGENTS_COL = window.AGENTS_COL;
 
 /**
- * Ensures database contains Level 1 target gesture code (2025)
- * and exports fetch function.
+ * Ensures database contains level configuration (Level 1, 2, and 3 time limits & codes)
+ * in Firestore under level_config documents and level1/levels subcollection.
  */
-async function initDatabaseLevel1Config() {
+async function initDatabaseLevelConfig() {
   if (!window.db) return;
   try {
-    const configRef = window.db.collection('level_config').doc('level1');
-    const snap = await configRef.get();
-    if (!snap.exists || !snap.data().secretCode) {
-      await configRef.set({
-        secretCode: '2025',
-        targetValue: 2025,
-        levelName: 'Level 1: Physical Quest & Gesture Recognition',
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      console.log('[Database] Stored Level 1 secret code 2025 in Firestore.');
-    }
+    // 1. Sync exact level_config/levels document matching user's Firestore schema
+    const levelsRef = window.db.collection('level_config').doc('levels');
+    await levelsRef.set({
+      level1: 180,
+      level2: 180,
+      level3: 180
+    }, { merge: true });
+
+    // 2. Sync level1 target code document
+    const l1Ref = window.db.collection('level_config').doc('level1');
+    await l1Ref.set({
+      secretCode: '2025',
+      targetValue: 2025,
+      levelName: 'Level 1: Physical Quest & Gesture Recognition'
+    }, { merge: true });
+
+    console.log('[Database] Synced level_config/levels (level1: 180, level2: 180, level3: 180) to Firestore.');
   } catch (err) {
-    console.warn('[Database] Level 1 config sync note:', err.message || err);
+    console.warn('[Database] Level config sync note:', err.message || err);
   }
 }
 
@@ -66,6 +72,39 @@ async function fetchLevel1TargetCode() {
   return '2025';
 }
 
+async function fetchLevelTime(levelNum) {
+  const defaultSeconds = 180; // 3 minutes default
+  if (!window.db) return defaultSeconds;
+  try {
+    const lvlKey = 'level' + levelNum;
+    
+    // Primary lookup: level_config/levels document (exact user schema: level1: 180, level2: 180, level3: 180)
+    const levelsSnap = await window.db.collection('level_config').doc('levels').get();
+    if (levelsSnap.exists && levelsSnap.data()) {
+      const data = levelsSnap.data();
+      if (data[lvlKey] !== undefined && !isNaN(data[lvlKey])) {
+        return Number(data[lvlKey]);
+      }
+    }
+
+    // Secondary fallback: level_config/levelX document
+    const snap = await window.db.collection('level_config').doc(lvlKey).get();
+    if (snap.exists && snap.data()) {
+      const data = snap.data();
+      if (data.timeLimitSeconds && !isNaN(data.timeLimitSeconds)) {
+        return Number(data.timeLimitSeconds);
+      }
+      if (data.timeLimitMinutes && !isNaN(data.timeLimitMinutes)) {
+        return Number(data.timeLimitMinutes) * 60;
+      }
+    }
+  } catch (e) {
+    console.warn(`[Database] Error fetching time limit for Level ${levelNum}:`, e.message || e);
+  }
+  return defaultSeconds;
+}
+
 window.fetchLevel1TargetCode = fetchLevel1TargetCode;
-initDatabaseLevel1Config();
+window.fetchLevelTime = fetchLevelTime;
+initDatabaseLevelConfig();
 

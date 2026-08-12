@@ -17,6 +17,7 @@ import { Level3HUD } from "../components/level3/Level3HUD";
 import { gameState, formatTime } from "../utils/gameState";
 import { fetchSessionInfo } from "../utils/api";
 import { RoomLeaderboardModal } from "../components/RoomLeaderboardModal";
+import { updateAgentProgressInFirebase } from "../utils/firebase";
 
 const CITY = "/models/ciudadortogonal26.glb";
 const PLAYER = "/models/player1.glb";
@@ -104,6 +105,28 @@ export default function Home() {
   const handleL3BattleStateChange = useCallback((state: "FIGHTING" | "VICTORY" | "DEFEAT", elapsedSec: number) => {
     setL3BattleState(state);
     setL3ElapsedTimeSec(elapsedSec);
+
+    if (typeof window !== "undefined") {
+      const docId = localStorage.getItem("tc_firebase_doc_id");
+      const start = parseInt(localStorage.getItem("tc_campaign_start_time") || "0", 10);
+      const totalSec = start > 0 ? Math.floor((Date.now() - start) / 1000) : elapsedSec;
+
+      if (docId) {
+        if (state === "VICTORY") {
+          updateAgentProgressInFirebase(docId, {
+            maxLevel: 3,
+            status: "COMPLETED",
+            totalTimeSeconds: totalSec,
+          });
+        } else if (state === "DEFEAT") {
+          updateAgentProgressInFirebase(docId, {
+            maxLevel: 3,
+            status: "ELIMINATED",
+            totalTimeSeconds: totalSec,
+          });
+        }
+      }
+    }
   }, []);
 
   const handleResetLevel3 = () => {
@@ -150,6 +173,19 @@ export default function Home() {
       setL3BattleState("FIGHTING");
       setL3ElapsedTimeSec(0);
       setL3ResetSignal((s) => s + 1);
+
+      if (typeof window !== "undefined") {
+        const docId = localStorage.getItem("tc_firebase_doc_id");
+        const start = parseInt(localStorage.getItem("tc_campaign_start_time") || "0", 10);
+        const totalSec = start > 0 ? Math.floor((Date.now() - start) / 1000) : 0;
+        if (docId) {
+          updateAgentProgressInFirebase(docId, {
+            maxLevel: 3,
+            status: "QUALIFIED",
+            totalTimeSeconds: totalSec,
+          });
+        }
+      }
     }
   }, [activeLevel, activePlayer, activePlayer?.status]);
   const activeStones = activePlayer ? activePlayer.stonesCollected || 0 : 0;

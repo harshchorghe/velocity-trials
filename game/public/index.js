@@ -790,14 +790,15 @@ async function saveAgentToFirebase(p) {
         const docRef = await fs.collection(colName).add({
             name: p.name,
             roll: p.roll || p.playerId,
-            dept: p.dept,
-            year: p.year,
-            phone: p.phone,
-            roomCode: p.roomCode,
-            playerSlot: p.playerSlot,
-            isHost: !!p.isHost,
+            dept: p.dept || 'CSE',
+            year: p.year || 'BE',
+            phone: p.phone || '',
+            maxLevel: 1,
+            status: 'IN_PROGRESS',
+            totalTimeSeconds: 0,
             score: 0,
-            createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+            createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+            updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
         });
         if (docRef && docRef.id) {
             console.log('[Firebase] Registered agent in tc_agents doc ID:', docRef.id);
@@ -817,7 +818,7 @@ document.getElementById('btn-auth-proceed')?.addEventListener('click', () => {
     startLevel1();
 });
 
-function handleSinglePlayerLoginSubmit() {
+async function handleSinglePlayerLoginSubmit() {
     const nameInput = document.getElementById('playerName');
     const phoneInput = document.getElementById('phone');
     const deptInput = document.getElementById('department');
@@ -847,7 +848,12 @@ function handleSinglePlayerLoginSubmit() {
     } catch(e) {}
     if (typeof API !== 'undefined') API.token = token;
 
-    saveAgentToFirebase(sessionPlayer);
+    // Await Firebase Firestore document creation before redirecting
+    try {
+        await saveAgentToFirebase(sessionPlayer);
+    } catch (err) {
+        console.warn('[Firebase] Save note:', err);
+    }
 
     startLevel1();
     return false;
