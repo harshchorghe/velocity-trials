@@ -142,6 +142,7 @@ export default function Home() {
         overflow: "hidden",
         position: "relative",
         background: "#020617",
+        cursor: "default",
       }}
     >
       {/* Real-Time Player-Specific 360° Stone Objective Navigator */}
@@ -340,6 +341,7 @@ export default function Home() {
           antialias: true,
           powerPreference: "high-performance",
         }}
+        style={{ cursor: "default" }}
       >
         {/* Atmospheric Depth Fog & Cyberpunk Ambiance Lighting */}
         <fog attach="fog" args={["#020617", 40, 180]} />
