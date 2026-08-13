@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { gameState } from "../../utils/gameState";
+import { gameState, formatTime } from "../../utils/gameState";
 
 interface Level3HUDProps {
   qualifiedPlayerId: string;
@@ -11,6 +11,8 @@ interface Level3HUDProps {
   astraHP?: number;
   astraMaxHP?: number;
   onAttack?: () => void;
+  l3TimeLimitSec?: number;
+  elapsedTimeSec?: number;
 }
 
 export function Level3HUD({
@@ -21,6 +23,8 @@ export function Level3HUD({
   astraHP = 100,
   astraMaxHP = 100,
   onAttack,
+  l3TimeLimitSec = 180,
+  elapsedTimeSec = 0,
 }: Level3HUDProps) {
   const player = gameState.players[qualifiedPlayerId];
   const playerName = player?.name || "Player 1";
@@ -58,16 +62,32 @@ export function Level3HUD({
               ASTRA — FINAL BOSS
             </span>
           </div>
-          <span
-            style={{
-              fontSize: "12px",
-              fontWeight: 800,
-              color: "#fca5a5",
-              fontFamily: "monospace",
-            }}
-          >
-            {astraHP} / {astraMaxHP} HP
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: Math.max(0, l3TimeLimitSec - elapsedTimeSec) <= 30 ? "#ff0055" : "#00f0ff",
+                background: Math.max(0, l3TimeLimitSec - elapsedTimeSec) <= 30 ? "rgba(255, 0, 85, 0.15)" : "rgba(0, 240, 255, 0.1)",
+                border: Math.max(0, l3TimeLimitSec - elapsedTimeSec) <= 30 ? "1px solid #ff0055" : "1px solid rgba(0, 240, 255, 0.3)",
+                padding: "2px 8px",
+                borderRadius: "6px",
+                fontFamily: "monospace",
+              }}
+            >
+              ⏳ {formatTime(Math.max(0, l3TimeLimitSec - elapsedTimeSec))}
+            </span>
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: 800,
+                color: "#fca5a5",
+                fontFamily: "monospace",
+              }}
+            >
+              {astraHP} / {astraMaxHP} HP
+            </span>
+          </div>
         </div>
 
         {/* Boss HP Bar */}

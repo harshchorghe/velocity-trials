@@ -4,6 +4,7 @@ import {
   collection,
   addDoc,
   doc,
+  getDoc,
   updateDoc,
   getDocs,
   onSnapshot,
@@ -163,3 +164,52 @@ export function onAgentsUpdate(callback: (agents: AgentData[]) => void) {
     return () => { };
   }
 }
+
+export async function fetchLevelTimeFromFirebase(levelNum: number): Promise<number> {
+  const defaultSeconds = 180;
+  const cacheKey = `vt_level_${levelNum}_time`;
+
+  // 1. Try window.fetchLevelTime (compat SDK) if available
+  if (typeof window !== "undefined" && typeof (window as any).fetchLevelTime === "function") {
+    try {
+      const val = await (window as any).fetchLevelTime(levelNum);
+      if (val && val > 0) {
+        localStorage.setItem(cacheKey, val.toString());
+        return val;
+      }
+    } catch (_) {}
+  }
+
+  // 2. Try Modular Firebase SDK getDoc
+  try {
+    const levelsDocRef = doc(db, "level_config", "levels");
+    const snap = await getDoc(levelsDocRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const lvlKey = `level${levelNum}`;
+      if (data && data[lvlKey] !== undefined) {
+        const val = Number(data[lvlKey]);
+        if (!isNaN(val) && val > 0) {
+          localStorage.setItem(cacheKey, val.toString());
+          console.log(`[Firebase] Loaded Level ${levelNum} time limit from level_config/levels: ${val}s`);
+          return val;
+        }
+      }
+    }
+  } catch (err: any) {
+    if (err?.code === "permission-denied" || err?.message?.includes("permissions")) {
+      console.info(`[Firebase Note] Firestore rules restricted direct read for level_config/levels. To enable, update Firestore Rules to allow read on level_config.`);
+    }
+  }
+
+  // 3. Fallback to localStorage cached value if previously loaded
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached && !isNaN(Number(cached)) && Number(cached) > 0) {
+      return Number(cached);
+    }
+  }
+
+  return defaultSeconds;
+}
+

@@ -17,7 +17,7 @@ import { Level3HUD } from "../components/level3/Level3HUD";
 import { gameState, formatTime } from "../utils/gameState";
 import { fetchSessionInfo } from "../utils/api";
 import { RoomLeaderboardModal } from "../components/RoomLeaderboardModal";
-import { updateAgentProgressInFirebase } from "../utils/firebase";
+import { updateAgentProgressInFirebase, fetchLevelTimeFromFirebase } from "../utils/firebase";
 
 const CITY = "/models/ciudadortogonal26.glb";
 const PLAYER = "/models/player1.glb";
@@ -59,11 +59,22 @@ export default function Home() {
   const [detectionRange, setDetectionRange] = useState<number>(25);
   const [, setForceTick] = useState<number>(0);
 
-  // Level 3 State
   const [l3BattleState, setL3BattleState] = useState<"FIGHTING" | "VICTORY" | "DEFEAT">("FIGHTING");
   const [l3ElapsedTimeSec, setL3ElapsedTimeSec] = useState<number>(0);
   const [l3ResetSignal, setL3ResetSignal] = useState<number>(0);
   const [showLeaderboard, setShowLeaderboard] = useState<boolean>(false);
+  const [level2TimeLimitSec, setLevel2TimeLimitSec] = useState<number>(180);
+  const [l3TimeLimitSec, setL3TimeLimitSec] = useState<number>(180);
+
+  // Fetch Level 2 & Level 3 time limits from Firestore level_config/levels
+  useEffect(() => {
+    fetchLevelTimeFromFirebase(2).then((sec) => {
+      if (sec && sec > 0) setLevel2TimeLimitSec(sec);
+    });
+    fetchLevelTimeFromFirebase(3).then((sec) => {
+      if (sec && sec > 0) setL3TimeLimitSec(sec);
+    });
+  }, []);
 
   // Sync player info from URL parameters & Local Room Session API
   useEffect(() => {
@@ -232,10 +243,20 @@ export default function Home() {
       }
     }
   }, [activeLevel, activePlayer, activePlayer?.status]);
+
+  // Enforce Level 2 time limit fetched from Firestore level_config/levels
+  useEffect(() => {
+    if (activeLevel === 2 && activePlayer && activePlayer.status === "PLAYING") {
+      if (activePlayer.elapsedTimeSec >= level2TimeLimitSec) {
+        activePlayer.status = "ELIMINATED";
+        console.log(`[Level 2] Time limit of ${level2TimeLimitSec}s reached! Player eliminated.`);
+      }
+    }
+  }, [activeLevel, activePlayer, activePlayer?.elapsedTimeSec, level2TimeLimitSec]);
   const activeStones = activePlayer ? activePlayer.stonesCollected || 0 : 0;
-  const timerDisplay = activePlayer
-    ? activePlayer.completionTimeFormatted || formatTime(activePlayer.elapsedTimeSec)
-    : "00:00";
+  const remainingL2Sec = Math.max(0, level2TimeLimitSec - Math.floor(activePlayer?.elapsedTimeSec || 0));
+  const remainingL3Sec = Math.max(0, l3TimeLimitSec - l3ElapsedTimeSec);
+  const activeCountdownSec = activeLevel === 3 ? remainingL3Sec : remainingL2Sec;
 
   // Level 3: determine which player enters the boss fight
   const l3QualifiedId = gameState.qualifiedPlayerIds[0] || activeControlledId;
@@ -345,16 +366,16 @@ export default function Home() {
                 </span>
                 <span
                   style={{
-                    background: "rgba(56, 189, 248, 0.2)",
-                    color: "#38bdf8",
-                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    background: activeCountdownSec <= 30 ? "rgba(239, 68, 68, 0.3)" : "rgba(56, 189, 248, 0.2)",
+                    color: activeCountdownSec <= 30 ? "#ff4444" : "#38bdf8",
+                    border: activeCountdownSec <= 30 ? "1px solid #ef4444" : "1px solid rgba(56, 189, 248, 0.4)",
                     padding: "2px 6px",
                     borderRadius: "10px",
                     fontSize: "10px",
-                    fontWeight: 700,
+                    fontWeight: 800,
                   }}
                 >
-                  ⏱️ {activeLevel === 3 ? formatTime(l3ElapsedTimeSec) : timerDisplay}
+                  ⏳ {activeLevel === 3 ? "L3 TIMER: " : "L2 TIMER: "}{formatTime(activeCountdownSec)}
                 </span>
                 {activeLevel === 2 && (
                   <span
@@ -576,27 +597,6 @@ export default function Home() {
 
             <div style={{ fontSize: "14px", fontWeight: 900, color: "#22c55e", letterSpacing: "1.5px", marginTop: "4px" }}>
               🌟 HUMANITY IS SAVED
-            </div>
-
-            <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "8px" }}>
-              <button
-                onClick={() => setShowLeaderboard(true)}
-                style={{
-                  flex: 1,
-                  background: "linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)",
-                  border: "none",
-                  borderRadius: "10px",
-                  padding: "14px 24px",
-                  color: "#ffffff",
-                  fontSize: "15px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: "0 0 25px rgba(56, 189, 248, 0.6)",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                🏆 TOURNAMENT LEADERBOARD
-              </button>
             </div>
           </div>
         </div>

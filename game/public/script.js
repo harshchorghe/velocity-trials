@@ -2097,7 +2097,7 @@ function startLevel1() {
             if (failBanner) failBanner.style.display = 'flex';
             if (typeof AUDIO !== 'undefined' && AUDIO.sfxError) AUDIO.sfxError();
             if (typeof showAlert === 'function') {
-                showAlert('error', 'LEVEL 1 TIME EXPIRED', 'The 3-minute quest timer reached zero! Please retry Level 1.');
+                showAlert('error', 'LEVEL 1 TIME EXPIRED', 'The quest timer reached zero! Please retry Level 1.');
             }
         }
     }, 100);

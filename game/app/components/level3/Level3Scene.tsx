@@ -9,6 +9,7 @@ import { AstraBoss } from "./AstraBoss";
 import { Level3Camera } from "./Level3Camera";
 import { Level3HUD } from "./Level3HUD";
 import { gameState } from "../../utils/gameState";
+import { fetchLevelTimeFromFirebase } from "../../utils/firebase";
 
 interface Level3SceneProps {
   qualifiedPlayerId?: string;
@@ -74,14 +75,14 @@ export function Level3Scene({ qualifiedPlayerId, onBattleStateChange, resetSigna
   const [astraIsHit, setAstraIsHit] = useState(false);
   const [astraIsAttacking, setAstraIsAttacking] = useState(false);
 
-  // Timer interval for Level 3 battle duration
+  const [l3TimeLimitSec, setL3TimeLimitSec] = useState<number>(180);
+
+  // Fetch Level 3 time limit from Firestore level_config/levels
   useEffect(() => {
-    if (battleState !== "FIGHTING" || l3BattleStore.status !== "FIGHTING") return;
-    const timer = setInterval(() => {
-      setElapsedTimeSec((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [battleState]);
+    fetchLevelTimeFromFirebase(3).then((sec) => {
+      if (sec && sec > 0) setL3TimeLimitSec(sec);
+    });
+  }, []);
 
   // Sync state changes with parent component
   const updateBattleState = useCallback(
@@ -111,6 +112,22 @@ export function Level3Scene({ qualifiedPlayerId, onBattleStateChange, resetSigna
     setPlayerLives(0);
     updateBattleState("DEFEAT", elapsedTimeSec);
   }, [updateBattleState, elapsedTimeSec]);
+
+  // Timer interval for Level 3 battle duration
+  useEffect(() => {
+    if (battleState !== "FIGHTING" || l3BattleStore.status !== "FIGHTING") return;
+    const timer = setInterval(() => {
+      setElapsedTimeSec((prev) => {
+        const next = prev + 1;
+        if (next >= l3TimeLimitSec && battleStateRef.current === "FIGHTING") {
+          console.log(`[Level 3] Time limit of ${l3TimeLimitSec}s reached! Player defeated by time expiration.`);
+          handlePlayerDefeat();
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [battleState, l3TimeLimitSec, handlePlayerDefeat]);
 
   // Reset / Retry Level 3
   const handleResetLevel3 = useCallback(() => {
@@ -292,6 +309,8 @@ export function Level3Scene({ qualifiedPlayerId, onBattleStateChange, resetSigna
               astraHP={astraHP}
               astraMaxHP={100}
               onAttack={handlePlayerAttack}
+              l3TimeLimitSec={l3TimeLimitSec}
+              elapsedTimeSec={elapsedTimeSec}
             />
           </div>
         </Html>
