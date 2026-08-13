@@ -1277,4 +1277,115 @@ document.addEventListener('DOMContentLoaded', () => {
     initMasterpieceVisuals();
     initEchoTransmission();
     if (typeof initRoomUI === 'function') initRoomUI();
+    initGameLock();
 });
+
+/* ══════════════════════════════════════════════════
+   GAME SECURITY LOCK & SYSTEM AUTHENTICATION
+══════════════════════════════════════════════════ */
+const CORRECT_GAME_PASSWORD = "Meet@11viva";
+
+function isGameUnlocked() {
+    return localStorage.getItem('vt_game_unlocked') === 'true' || sessionStorage.getItem('vt_game_unlocked') === 'true';
+}
+
+function handleGameUnlockSubmit() {
+    const inputEl = document.getElementById('gamePasswordInput');
+    const errEl = document.getElementById('gameLockError');
+    const overlayEl = document.getElementById('game-lock-overlay');
+    const panelEl = overlayEl ? overlayEl.querySelector('.lock-panel') : null;
+
+    if (!inputEl) return;
+    const val = inputEl.value;
+
+    if (val === CORRECT_GAME_PASSWORD) {
+        if (errEl) {
+            errEl.style.display = 'block';
+            errEl.className = 'lock-success';
+            errEl.textContent = '✔ ACCESS GRANTED — UNLOCKING TERMINAL...';
+        }
+        inputEl.classList.remove('error-border');
+
+        localStorage.setItem('vt_game_unlocked', 'true');
+        sessionStorage.setItem('vt_game_unlocked', 'true');
+
+        setTimeout(() => {
+            if (overlayEl) {
+                overlayEl.classList.add('unlocked');
+                setTimeout(() => {
+                    overlayEl.style.display = 'none';
+                }, 500);
+            }
+        }, 600);
+    } else {
+        inputEl.classList.add('error-border');
+        if (panelEl) {
+            panelEl.classList.remove('shake');
+            void panelEl.offsetWidth; // trigger reflow
+            panelEl.classList.add('shake');
+        }
+        if (errEl) {
+            errEl.style.display = 'block';
+            errEl.className = 'lock-error';
+            errEl.textContent = '🔒 ACCESS DENIED — INCORRECT PASSWORD';
+        }
+    }
+}
+
+function relockGame() {
+    localStorage.removeItem('vt_game_unlocked');
+    sessionStorage.removeItem('vt_game_unlocked');
+    const overlayEl = document.getElementById('game-lock-overlay');
+    const errEl = document.getElementById('gameLockError');
+    const inputEl = document.getElementById('gamePasswordInput');
+
+    if (overlayEl) {
+        overlayEl.style.display = 'flex';
+        overlayEl.classList.remove('unlocked');
+    }
+    if (errEl) {
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+    }
+    if (inputEl) {
+        inputEl.value = '';
+        inputEl.classList.remove('error-border');
+        inputEl.focus();
+    }
+}
+
+function initGameLock() {
+    const overlayEl = document.getElementById('game-lock-overlay');
+    if (!overlayEl) return;
+
+    if (isGameUnlocked()) {
+        overlayEl.style.display = 'none';
+        overlayEl.classList.add('unlocked');
+    } else {
+        overlayEl.style.display = 'flex';
+        overlayEl.classList.remove('unlocked');
+        const inputEl = document.getElementById('gamePasswordInput');
+        if (inputEl) {
+            setTimeout(() => inputEl.focus(), 150);
+        }
+    }
+
+    const toggleBtn = document.getElementById('btnTogglePasswordVisibility');
+    const inputEl = document.getElementById('gamePasswordInput');
+    if (toggleBtn && inputEl) {
+        toggleBtn.addEventListener('click', () => {
+            if (inputEl.type === 'password') {
+                inputEl.type = 'text';
+                toggleBtn.textContent = '🙈';
+            } else {
+                inputEl.type = 'password';
+                toggleBtn.textContent = '👁️';
+            }
+        });
+    }
+}
+
+window.handleGameUnlockSubmit = handleGameUnlockSubmit;
+window.relockGame = relockGame;
+window.isGameUnlocked = isGameUnlocked;
+

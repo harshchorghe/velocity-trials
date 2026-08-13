@@ -68,6 +68,12 @@ export default function Home() {
   // Sync player info from URL parameters & Local Room Session API
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const isUnlocked = localStorage.getItem("vt_game_unlocked") === "true" || sessionStorage.getItem("vt_game_unlocked") === "true";
+      if (!isUnlocked) {
+        window.location.href = "/index.html";
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       const urlToken = params.get("token") || localStorage.getItem("tc_token") || "";
       const urlLevel = params.get("level");

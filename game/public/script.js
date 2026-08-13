@@ -1,4 +1,16 @@
 /* ══════════════════════════════
+   GAME SECURITY GUARD
+══════════════════════════════ */
+(function checkGameAccess() {
+    if (typeof window !== 'undefined') {
+        const isUnlocked = localStorage.getItem('vt_game_unlocked') === 'true' || sessionStorage.getItem('vt_game_unlocked') === 'true';
+        if (!isUnlocked) {
+            window.location.href = './index.html';
+        }
+    }
+})();
+
+/* ══════════════════════════════
    API CLIENT
    The backend is authoritative for every score-bearing action. When the game is
    served from the backend itself (port 4000) requests are same-origin; the

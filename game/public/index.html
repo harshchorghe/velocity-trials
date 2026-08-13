@@ -24,8 +24,61 @@
 
 <body>
 
-  <!-- AUDIO TOGGLE -->
-  <button id="audio-toggle" title="Toggle Sound" aria-label="Toggle Sound">🔊</button>
+  <!-- ══════════════════════════════════════════
+       GAME LOCK / SECURITY GATEWAY OVERLAY
+  ══════════════════════════════════════════ -->
+  <div id="game-lock-overlay" class="game-lock-overlay">
+    <div class="lock-panel">
+      <div class="mc tl"></div>
+      <div class="mc tr"></div>
+      <div class="mc bl"></div>
+      <div class="mc br"></div>
+
+      <div class="lock-header">
+        <div class="lock-icon-badge">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#00f0ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h2 class="lock-title">SECURITY GATEWAY</h2>
+        <p class="lock-subtitle">RESTRICTED ACCESS — ENTER PASSWORD TO UNLOCK GAME</p>
+      </div>
+
+      <form id="gameLockForm" class="lock-form" onsubmit="event.preventDefault(); window.handleGameUnlockSubmit && window.handleGameUnlockSubmit(); return false;">
+        <div class="fg" style="margin-bottom:0;">
+          <label class="fl" for="gamePasswordInput">
+            <span class="fi-icon" aria-hidden="true">🗝️</span>
+            <span>ENTER SECURITY PASSWORD</span>
+          </label>
+          <div class="lock-input-wrap">
+            <input 
+              type="password" 
+              id="gamePasswordInput" 
+              class="fi lock-input" 
+              placeholder="Enter password..." 
+              autocomplete="current-password" 
+              required
+            />
+            <button type="button" id="btnTogglePasswordVisibility" class="btn-toggle-pw" title="Toggle visibility" aria-label="Toggle password visibility">👁️</button>
+          </div>
+        </div>
+
+        <div id="gameLockError" class="lock-error" style="display:none;" role="alert"></div>
+
+        <button type="submit" id="btnUnlockGame" class="btn-unlock-game">
+          <span>UNLOCK GAME</span>
+          <span class="btn-arrow">▸</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- AUDIO TOGGLE & SYSTEM LOCK BUTTON -->
+  <div style="position:fixed; top:20px; right:20px; z-index:1000; display:flex; gap:10px;">
+    <button id="btn-relock-game" class="btn-relock-game" title="Lock Game" aria-label="Lock Game" onclick="window.relockGame && window.relockGame();">🔒 LOCK</button>
+    <button id="audio-toggle" title="Toggle Sound" aria-label="Toggle Sound">🔊</button>
+  </div>
 
   <!-- STAGE 1 — INTRO VIDEO (DISABLED)
   <div id="intro-screen" role="presentation" aria-hidden="true">
