@@ -231,12 +231,12 @@ export function GestureController() {
       const dThumbTip = dist3D(lm[4], lm[17]); // Thumb tip to pinky MCP
       const dThumbMcp = dist3D(lm[2], lm[17]);
 
-      // Determine extended status with combined anatomical joint angle checks for maximum accuracy
-      const indexExtended = dIndexTip > dIndexPip * 1.08 && lm[8].y < lm[6].y + 0.05;
-      const middleExtended = dMiddleTip > dMiddlePip * 1.08 && lm[12].y < lm[10].y + 0.05;
-      const ringExtended = dRingTip > dRingPip * 1.08 && lm[16].y < lm[14].y + 0.05;
-      const pinkyExtended = dPinkyTip > dPinkyPip * 1.08 && lm[20].y < lm[18].y + 0.05;
-      const thumbExtended = dThumbTip > dThumbMcp * 1.15;
+      // 3D & 2D Anatomical Finger Extension Ratio Checks (Angle & Camera-Tilt Independent)
+      const indexExtended = dIndexTip > dIndexPip * 1.05 && (lm[8].y < lm[6].y + 0.08 || dIndexTip > dIndexPip * 1.15);
+      const middleExtended = dMiddleTip > dMiddlePip * 1.05 && (lm[12].y < lm[10].y + 0.08 || dMiddleTip > dMiddlePip * 1.15);
+      const ringExtended = dRingTip > dRingPip * 1.05 && (lm[16].y < lm[14].y + 0.08 || dRingTip > dRingPip * 1.15);
+      const pinkyExtended = dPinkyTip > dPinkyPip * 1.05 && (lm[20].y < lm[18].y + 0.08 || dPinkyTip > dPinkyPip * 1.15);
+      const thumbExtended = dThumbTip > dThumbMcp * 1.12;
 
       fingers = {
         thumb: thumbExtended,
@@ -247,35 +247,27 @@ export function GestureController() {
       };
 
       // Classify Exact Gestures based on specification
-      if (thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
-        // GESTURE 1 — OPEN PALM 🖐️
+      if (indexExtended && middleExtended && ringExtended && pinkyExtended) {
+        // GESTURE 1 — OPEN PALM 🖐️ (All main 4 or 5 fingers extended)
         rawGesture = "MOVE_FORWARD";
       } else if (!thumbExtended && !indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
         // GESTURE 2 — CLOSED FIST ✊
         rawGesture = "STOP";
-      } else if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended && !thumbExtended) {
+      } else if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
         // GESTURE 3 — INDEX FINGER UP ☝️
         rawGesture = "JUMP";
-      } else if (thumbExtended && pinkyExtended && !indexExtended && !middleExtended && !ringExtended) {
-        // GESTURE 7 — THUMB + PINKY RAISED 🤙 (MOVE_BACKWARD)
-        rawGesture = "MOVE_BACKWARD";
-      } else if (thumbExtended && !indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
-        // GESTURE 4 — THUMBS UP 👍
-        rawGesture = "SPRINT";
-      } else if (indexExtended && middleExtended && ringExtended && !pinkyExtended) {
-        // GESTURE 5 — THREE FINGERS FOR LEFT (INDEX + MIDDLE + RING)
+      } else if (thumbExtended && !indexExtended && !middleExtended && !ringExtended) {
+        // GESTURE 4 — THUMB (T) -> MOVE_LEFT 👈
         rawGesture = "MOVE_LEFT";
       } else if (pinkyExtended && !indexExtended && !middleExtended && !ringExtended) {
-        // GESTURE 6 — PINKY FOR RIGHT
+        // GESTURE 5 — PINKY (P) -> MOVE_RIGHT 👉
         rawGesture = "MOVE_RIGHT";
       } else {
-        // Hand X-Position Horizontal Movement with 20% Center Deadzone (0.40 <= wrist.x <= 0.60)
-        // Hand moved to user's physical left -> wrist.x > 0.60 (in mirrored camera space)
-        // Hand moved to user's physical right -> wrist.x < 0.40 (in mirrored camera space)
+        // Hand X-Position Horizontal Movement with Center Deadzone (0.42 <= wrist.x <= 0.58)
         const wristX = wrist.x;
-        if (wristX > 0.60) {
+        if (wristX > 0.58) {
           rawGesture = "MOVE_LEFT";
-        } else if (wristX < 0.40) {
+        } else if (wristX < 0.42) {
           rawGesture = "MOVE_RIGHT";
         }
       }
@@ -283,16 +275,15 @@ export function GestureController() {
 
     setFingerState(fingers);
 
-    // 200ms Transient Vision Dropout Buffer for Movement Gestures
     const isMovementGesture = (g: GestureType) =>
       g === "MOVE_LEFT" || g === "MOVE_RIGHT" || g === "MOVE_FORWARD" || g === "MOVE_BACKWARD" || g === "SPRINT";
 
+    // 1. Vision Dropout Grace Period (120ms buffer for transient frame loss)
     if (isMovementGesture(rawGesture)) {
       lastMovementTimeRef.current = now;
       lastActiveMovementGestureRef.current = rawGesture;
     } else if (rawGesture === "NONE" && isMovementGesture(lastActiveMovementGestureRef.current)) {
-      // Hold active movement gesture during transient 1-3 frame vision dropout
-      if (now - lastMovementTimeRef.current < 200) {
+      if (now - lastMovementTimeRef.current < 120) {
         rawGesture = lastActiveMovementGestureRef.current;
       } else {
         lastActiveMovementGestureRef.current = "NONE";
@@ -301,34 +292,55 @@ export function GestureController() {
       lastActiveMovementGestureRef.current = "NONE";
     }
 
-    // 80ms Fast Stabilization / High-Precision Debouncing
-    if (rawGesture !== candidateGestureRef.current) {
+    // 2. State Synchronization & Immediate Brake/Stop Handling
+    const isImmediateState = rawGesture === "STOP" || rawGesture === "NONE";
+
+    if (isImmediateState) {
       candidateGestureRef.current = rawGesture;
       candidateTimestampRef.current = now;
-    } else if (now - candidateTimestampRef.current >= 80) {
-      // Gesture stable for >= 80ms
-      const prevActive = activeGestureRef.current;
-      activeGestureRef.current = rawGesture;
-      setDetectedGesture(rawGesture);
-
-      // Check one-shot jump trigger (NOT_JUMP -> JUMP)
-      let jumpPulseTrigger = false;
-      if (prevActive !== "JUMP" && rawGesture === "JUMP") {
-        jumpPulseTrigger = true;
-        gameState.triggerJumpPulse();
+      if (activeGestureRef.current !== rawGesture) {
+        activeGestureRef.current = rawGesture;
+        setDetectedGesture(rawGesture);
+        gameState.setGestureState({
+          rawGesture,
+          activeGesture: rawGesture,
+          forward: false,
+          backward: false,
+          left: false,
+          right: false,
+          sprint: false,
+          stop: rawGesture === "STOP",
+          jumpPulse: false,
+        });
       }
+    } else {
+      // 60ms Fast Stabilization Debounce for Active Movement / Action Gestures
+      if (rawGesture !== candidateGestureRef.current) {
+        candidateGestureRef.current = rawGesture;
+        candidateTimestampRef.current = now;
+      } else if (now - candidateTimestampRef.current >= 60 || activeGestureRef.current !== rawGesture) {
+        const prevActive = activeGestureRef.current;
+        activeGestureRef.current = rawGesture;
+        setDetectedGesture(rawGesture);
 
-      gameState.setGestureState({
-        rawGesture,
-        activeGesture: rawGesture,
-        forward: rawGesture === "MOVE_FORWARD",
-        backward: rawGesture === "MOVE_BACKWARD",
-        left: rawGesture === "MOVE_LEFT",
-        right: rawGesture === "MOVE_RIGHT",
-        sprint: rawGesture === "SPRINT",
-        stop: rawGesture === "STOP",
-        jumpPulse: jumpPulseTrigger,
-      });
+        let jumpPulseTrigger = false;
+        if (prevActive !== "JUMP" && rawGesture === "JUMP") {
+          jumpPulseTrigger = true;
+          gameState.triggerJumpPulse();
+        }
+
+        gameState.setGestureState({
+          rawGesture,
+          activeGesture: rawGesture,
+          forward: rawGesture === "MOVE_FORWARD",
+          backward: rawGesture === "MOVE_BACKWARD",
+          left: rawGesture === "MOVE_LEFT",
+          right: rawGesture === "MOVE_RIGHT",
+          sprint: rawGesture === "SPRINT",
+          stop: rawGesture === "STOP",
+          jumpPulse: jumpPulseTrigger,
+        });
+      }
     }
 
     animationFrameRef.current = requestAnimationFrame(processFrame);
@@ -463,18 +475,14 @@ export function GestureController() {
               <span style={{ color: "#ffffff" }}>
                 {detectedGesture === "MOVE_FORWARD"
                   ? "🖐️ MOVE FORWARD"
-                  : detectedGesture === "MOVE_BACKWARD"
-                  ? "🤙 MOVE BACKWARD"
                   : detectedGesture === "STOP"
                   ? "✊ STOP"
                   : detectedGesture === "JUMP"
                   ? "☝️ JUMP"
-                  : detectedGesture === "SPRINT"
-                  ? "👍 SPRINT"
                   : detectedGesture === "MOVE_LEFT"
-                  ? "👈 MOVE LEFT"
+                  ? "👈 MOVE LEFT (THUMB T)"
                   : detectedGesture === "MOVE_RIGHT"
-                  ? "👉 MOVE RIGHT"
+                  ? "👉 MOVE RIGHT (PINKY P)"
                   : "NONE"}
               </span>
             </div>

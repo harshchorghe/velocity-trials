@@ -71,13 +71,29 @@ export function MultiplayerManager({
       : activePlayer.rotationY;
 
     // 2. Unify WASD + Gesture Inputs into camera-relative directional intent
-    const rawFwd = keys["w"] || keys["arrowup"] || (gesture.forward && !gesture.stop) ? 1 : 0;
-    const rawBack = keys["s"] || keys["arrowdown"] || (gesture.backward && !gesture.stop) ? 1 : 0;
-    const rawLeft = keys["a"] || keys["arrowleft"] || (gesture.left && !gesture.stop) ? 1 : 0;
-    const rawRight = keys["d"] || keys["arrowright"] || (gesture.right && !gesture.stop) ? 1 : 0;
+    const isStopped = gesture.stop;
+
+    const gestureSteerLeft = gesture.left && !isStopped;
+    const gestureSteerRight = gesture.right && !isStopped;
+
+    // Include forward momentum when steering left/right via gestures for smooth curve turning
+    const rawFwd = !isStopped && (keys["w"] || keys["arrowup"] || gesture.forward || gestureSteerLeft || gestureSteerRight) ? 1 : 0;
+    const rawBack = !isStopped && (keys["s"] || keys["arrowdown"] || gesture.backward) ? 1 : 0;
+
+    let rawLeft = 0;
+    if (!isStopped) {
+      if (keys["a"] || keys["arrowleft"]) rawLeft += 1;
+      if (gestureSteerLeft) rawLeft += 0.45; // 0.45 ratio produces a smooth ~24° slight curve turn
+    }
+
+    let rawRight = 0;
+    if (!isStopped) {
+      if (keys["d"] || keys["arrowright"]) rawRight += 1;
+      if (gestureSteerRight) rawRight += 0.45; // 0.45 ratio produces a smooth ~24° slight curve turn
+    }
 
     const inputFwd = rawFwd - rawBack;   // +1 for camera-forward, -1 for camera-backward
-    const inputSide = rawRight - rawLeft; // +1 for camera-right, -1 for camera-left
+    const inputSide = rawRight - rawLeft; // +0.45 / +1 for right, -0.45 / -1 for left
     const isInputActive = inputFwd !== 0 || inputSide !== 0;
 
     // Lock camera reference angle at start of movement stroke to prevent feedback loop
